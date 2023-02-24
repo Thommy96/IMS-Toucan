@@ -12,11 +12,13 @@ split/
 singing/
 toucan_conda_venv/
 venv/
+wandb/
 
 *_graph
 app.py
 gradio*
 *playground*
+testing*
 
 *.pt
 *.out
