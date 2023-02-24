@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from TrainingInterfaces.TrainingPipelines.finetuning_blizzard2013_baseline import run as finetuning_blizzard2013_baseline
 from TrainingInterfaces.TrainingPipelines.FastSpeech2_IntegrationTest import run as fs_integration_test
 from TrainingInterfaces.TrainingPipelines.HiFiGAN_Avocodo import run as hifi_codo
 from TrainingInterfaces.TrainingPipelines.JointEmbeddingFunction import run as embedding
@@ -17,6 +18,7 @@ pipeline_dict = {
     "fine_ex"  : fine_tuning_example,
     "fs_it"    : fs_integration_test,
     "ps_it"    : ps_integration_test,
+    "fine_blizzard2013_baseline" : finetuning_blizzard2013_baseline,
 }
 
 if __name__ == '__main__':
