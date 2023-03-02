@@ -23,7 +23,7 @@ def collate_and_pad(batch):
     #NOTE(Thomas): maybe there is a better way
     try:
         sentence_embeddings = torch.stack([datapoint[9] for datapoint in batch])
-    except RuntimeError:
+    except:
         sentence_embeddings = None
     return (pad_sequence([datapoint[0] for datapoint in batch], batch_first=True),
             torch.stack([datapoint[1] for datapoint in batch]).squeeze(1),
@@ -51,7 +51,8 @@ def train_loop(net,
                resume,
                phase_1_steps,
                phase_2_steps,
-               use_wandb
+               use_wandb,
+               sent_emb_integration='none'
                ):
     """
     Args:
@@ -70,6 +71,7 @@ def train_loop(net,
         phase_2_steps: how many steps to train using the cycle objectives
         path_to_embed_model: path to the pretrained embedding function
     """
+    assert sent_emb_integration in ['concat', 'encoder', 'none']
     steps = phase_1_steps + phase_2_steps
     postnet_start_steps = warmup_steps // 2
     net = net.to(device)
@@ -126,9 +128,9 @@ def train_loop(net,
                     # =        PHASE 1: no cycle objective          =
                     # ===============================================
                     style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
-                                                               batch_of_spectrogram_lengths=batch[3].to(device),
-                                                               batch_of_sentence_embeddings=batch[9].to(device))
-
+                                                            batch_of_spectrogram_lengths=batch[3].to(device),
+                                                            batch_of_sentence_embeddings=batch[9].to(device) if sent_emb_integration=='concat' else None)
+                    
                     l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss = net(
                         text_tensors=batch[0].to(device),
                         text_lengths=batch[1].to(device),
@@ -140,6 +142,7 @@ def train_loop(net,
                         gold_energy=batch[5].to(device),
                         # mind the switched order
                         utterance_embedding=style_embedding,
+                        sentence_embedding=batch[9].to(device) if sent_emb_integration=='encoder' else None,
                         lang_ids=batch[8].to(device),
                         return_mels=False,
                         run_glow=step_counter > postnet_start_steps or fine_tune)
@@ -161,7 +164,7 @@ def train_loop(net,
                     style_embedding_of_gold, out_list_gold = style_embedding_function(
                         batch_of_spectrograms=batch[2].to(device),
                         batch_of_spectrogram_lengths=batch[3].to(device),
-                        batch_of_sentence_embeddings=batch[9].to(device),
+                        batch_of_sentence_embeddings=batch[9].to(device) if sent_emb_integration=='concat' else None,
                         return_all_outs=True)
 
                     l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, output_spectrograms = net(
@@ -175,6 +178,7 @@ def train_loop(net,
                         gold_energy=batch[5].to(device),
                         # mind the switched order
                         utterance_embedding=style_embedding_of_gold.detach(),
+                        sentence_embedding=batch[9].to(device) if sent_emb_integration=='encoder' else None,
                         lang_ids=batch[8].to(device),
                         return_mels=True,
                         run_glow=step_counter > postnet_start_steps or fine_tune)
@@ -192,7 +196,7 @@ def train_loop(net,
                     style_embedding_of_predicted, out_list_predicted = style_embedding_function(
                         batch_of_spectrograms=output_spectrograms,
                         batch_of_spectrogram_lengths=batch[3].to(device),
-                        batch_of_sentence_embeddings=batch[9].to(device),
+                        batch_of_sentence_embeddings=batch[9].to(device) if sent_emb_integration=='concat' else None,
                         return_all_outs=True)
 
                     cycle_dist = torch.nn.functional.l1_loss(style_embedding_of_predicted,
@@ -228,7 +232,9 @@ def train_loop(net,
         default_embedding = style_embedding_function(
             batch_of_spectrograms=train_dataset[0][2].unsqueeze(0).to(device),
             batch_of_spectrogram_lengths=train_dataset[0][3].unsqueeze(0).to(device),
-            batch_of_sentence_embeddings=train_dataset[0][9].unsqueeze(0).to(device)).squeeze()
+            batch_of_sentence_embeddings=train_dataset[0][9].unsqueeze(0).to(device) if sent_emb_integration=='concat' else None
+            ).squeeze()
+        default_sentence_embedding = train_dataset[0][9] if sent_emb_integration=='encoder' else None
         torch.save({
             "model":        net.state_dict(),
             "optimizer":    optimizer.state_dict(),
@@ -236,6 +242,7 @@ def train_loop(net,
             "scaler":       grad_scaler.state_dict(),
             "scheduler":    scheduler.state_dict(),
             "default_emb":  default_embedding,
+            "default_sent_emb": default_sentence_embedding,
         }, os.path.join(save_directory, "checkpoint_{}.pt".format(step_counter)))
         delete_old_checkpoints(save_directory, keep=5)
         try:
@@ -246,6 +253,7 @@ def train_loop(net,
                                                                 step=step_counter,
                                                                 lang=lang,
                                                                 default_emb=default_embedding,
+                                                                default_sent_emb=default_sentence_embedding,
                                                                 before_and_after_postnet=True,
                                                                 run_postflow=step_counter - 5 > postnet_start_steps)
             if use_wandb:
