@@ -10,6 +10,7 @@ from Utility.corpus_preparation import prepare_fastspeech_corpus
 from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
+from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
 
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
@@ -31,26 +32,31 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French")
+        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French_stCamembert_encoder")
     os.makedirs(save_dir, exist_ok=True)
+
+    sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
 
     french_datasets = list()
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_siwis_subset(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis"),
-                                                     lang="fr"))
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis_stCamembert"),
+                                                     lang="fr",
+                                                     sentence_embedding_extractor=sentence_embedding_extractor))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad_stCamembert"),
                                                      lang="fr",
-                                                     ctc_selection=False))
+                                                     ctc_selection=False,
+                                                     sentence_embedding_extractor=sentence_embedding_extractor))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_stCamembert"),
                                                      lang="fr",
-                                                     ctc_selection=False))
+                                                     ctc_selection=False,
+                                                     sentence_embedding_extractor=sentence_embedding_extractor))
 
-    model = PortaSpeech(lang_embs=None)
+    model = PortaSpeech(lang_embs=None, utt_embed_dim=832)
     if use_wandb:
         wandb.init(
             name=f"{__name__.split('.')[-1]}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
@@ -67,6 +73,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                path_to_embed_model=os.path.join(MODELS_DIR, "Embedding", "embedding_function.pt"),
                fine_tune=finetune,
                resume=resume,
-               use_wandb=use_wandb)
+               use_wandb=use_wandb,
+               sent_emb_integration='concat')
     if use_wandb:
         wandb.finish()

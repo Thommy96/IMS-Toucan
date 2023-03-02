@@ -7,7 +7,10 @@ from TrainingInterfaces.TrainingPipelines.FastSpeech2_IntegrationTest import run
 from TrainingInterfaces.TrainingPipelines.HiFiGAN_Avocodo import run as hifi_codo
 from TrainingInterfaces.TrainingPipelines.JointEmbeddingFunction import run as embedding
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD import run as ad
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD_encoder import run as ad_encoder
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_French import run as libri
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_French_concat import run as libri_concat
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_French_encoder import run as libri_encoder
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_IntegrationTest import run as ps_integration_test
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_MetaCheckpoint import run as meta
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB import run as neb
@@ -25,8 +28,11 @@ pipeline_dict = {
     "ps_it"    : ps_integration_test,
     "nancy"    : nancy,
     "ad"       : ad,
+    "ad_encoder" : ad_encoder,
     "neb"      : neb,
     "libri"    : libri,
+    "libri_concat"   : libri_concat,
+    "libri_encoder"  : libri_encoder,
     "spk_embed": finetune_model_speaker,
     "bigvgan"  : bigvgan
 }
