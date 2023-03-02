@@ -22,7 +22,8 @@ class StyleEmbedding(torch.nn.Module):
                 batch_of_spectrograms,
                 batch_of_spectrogram_lengths,
                 return_all_outs=False,
-                return_only_refs=False):
+                return_only_refs=False,
+                batch_of_sentence_embeddings=None):
         """
         Args:
             return_only_refs: return reference embedding instead of mixed style tokens
@@ -54,7 +55,8 @@ class StyleEmbedding(torch.nn.Module):
         spec_batch = torch.stack(specs, dim=0)
         return self.gst(speech=spec_batch,
                         return_all_outs=return_all_outs,
-                        return_only_ref=return_only_refs)
+                        return_only_ref=return_only_refs,
+                        sentence_embeddings=batch_of_sentence_embeddings)
 
 
 if __name__ == '__main__':

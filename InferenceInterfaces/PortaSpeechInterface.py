@@ -85,9 +85,14 @@ class PortaSpeechInterface(torch.nn.Module):
                 self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                              lang_embs=None)  # multi speaker single language
             except RuntimeError:
-                self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                             lang_embs=None,
-                                             utt_embed_dim=None)  # single speaker
+                try:
+                    self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                lang_embs=None,
+                                                utt_embed_dim=None)  # single speaker
+                except RuntimeError:
+                    self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                lang_embs=None,
+                                                utt_embed_dim=832)  # multi speaker sentence embedding
         with torch.no_grad():
             self.phone2mel.store_inverse_all()
         self.phone2mel = self.phone2mel.to(torch.device(device))
@@ -136,6 +141,11 @@ class PortaSpeechInterface(torch.nn.Module):
         spec_len = torch.LongTensor([len(spec)])
         self.default_utterance_embedding = self.style_embedding_function(spec.unsqueeze(0).to(self.device),
                                                                          spec_len.unsqueeze(0).to(self.device)).squeeze()
+        
+    def set_sentence_embedding(self, prompt:str, sentence_embedding_extractor):
+        prompt_embedding = sentence_embedding_extractor.encode([prompt]).squeeze().to(self.device)
+        utt_embed_only = self.default_utterance_embedding[:64]
+        self.default_utterance_embedding = torch.cat([utt_embed_only, prompt_embedding])
 
     def set_language(self, lang_id):
         """

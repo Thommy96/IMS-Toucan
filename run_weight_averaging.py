@@ -22,8 +22,12 @@ def load_net_porta(path):
             net = PortaSpeech(lang_embs=None)
             net.load_state_dict(check_dict["model"])
         except RuntimeError:
-            net = PortaSpeech(lang_embs=None, utt_embed_dim=None)
-            net.load_state_dict(check_dict["model"])
+            try:
+                net = PortaSpeech(lang_embs=None, utt_embed_dim=None)
+                net.load_state_dict(check_dict["model"])
+            except RuntimeError:
+                net = PortaSpeech(lang_embs=None, utt_embed_dim=832)
+                net.load_state_dict(check_dict["model"])
     return net, check_dict["default_emb"]
 
 

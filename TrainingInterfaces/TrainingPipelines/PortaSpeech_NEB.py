@@ -9,6 +9,8 @@ from Utility.corpus_preparation import prepare_fastspeech_corpus
 from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
+from Preprocessing.sentence_embeddings.CAMEMBERTSentenceEmbeddingExtractor import CAMEMBERTSentenceEmbeddingExtractor
+from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
 
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
@@ -33,12 +35,15 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
         save_dir = os.path.join(MODELS_DIR, "PortaSpeech_NEB")
     os.makedirs(save_dir, exist_ok=True)
 
-    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
-                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
-                                          lang="fr",
-                                          save_imgs=False)
+    sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
 
-    model = PortaSpeech(lang_embs=None)
+    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
+                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_stCamembert"),
+                                          lang="fr",
+                                          save_imgs=False,
+                                          sentence_embedding_extractor=sentence_embedding_extractor)
+
+    model = PortaSpeech(lang_embs=None, utt_embed_dim=832)
     if use_wandb:
         wandb.init(
             name=f"{__name__.split('.')[-1]}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
@@ -49,7 +54,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                datasets=[train_set],
                device=device,
                save_directory=save_dir,
-               batch_size=24,
+               batch_size=8,
                eval_lang="fr",
                path_to_checkpoint=resume_checkpoint,
                path_to_embed_model=os.path.join(MODELS_DIR, "Embedding", "embedding_function.pt"),
