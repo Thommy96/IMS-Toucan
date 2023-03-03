@@ -11,8 +11,6 @@ from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
 
-import sys
-
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
     if gpu_id == "cpu":
@@ -51,8 +49,6 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                                                      corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
                                                      lang="fr",
                                                      ctc_selection=False))
-    
-    sys.exit()
 
     model = PortaSpeech(lang_embs=None)
     if use_wandb:
