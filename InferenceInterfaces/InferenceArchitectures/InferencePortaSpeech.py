@@ -68,7 +68,8 @@ class PortaSpeech(torch.nn.Module):
                  # additional features
                  utt_embed_dim=64,
                  lang_embs=8000,
-                 weights=None):
+                 weights=None,
+                 sent_embed_dim=None):
         super().__init__()
 
         # store hyperparameters
@@ -81,6 +82,7 @@ class PortaSpeech(torch.nn.Module):
         self.use_scaled_pos_enc = use_scaled_positional_encoding
         self.multilingual_model = lang_embs is not None
         self.multispeaker_model = utt_embed_dim is not None
+        self.prompt_model = sent_embed_dim is not None
 
         # define encoder
         embed = torch.nn.Sequential(torch.nn.Linear(input_feature_dimensions, 100),
@@ -103,7 +105,8 @@ class PortaSpeech(torch.nn.Module):
                                  cnn_module_kernel=conformer_encoder_kernel_size,
                                  zero_triu=False,
                                  utt_embed=None,
-                                 lang_embs=lang_embs)
+                                 lang_embs=lang_embs,
+                                 sent_embed_dim=sent_embed_dim)
 
         # define duration predictor
         self.duration_predictor = DurationPredictor(idim=attention_dimension, n_layers=duration_predictor_layers,
@@ -208,6 +211,7 @@ class PortaSpeech(torch.nn.Module):
                  gold_energy=None,
                  duration_scaling_factor=1.0,
                  utterance_embedding=None,
+                 sentence_embedding=None,
                  lang_ids=None,
                  pitch_variance_scale=1.0,
                  energy_variance_scale=1.0,
@@ -219,6 +223,9 @@ class PortaSpeech(torch.nn.Module):
 
         if not self.multispeaker_model:
             utterance_embedding = None
+        
+        if not self.prompt_model:
+            sentence_embedding = None
 
         # forward encoder
         text_masks = self._source_mask(text_lens)
@@ -226,6 +233,7 @@ class PortaSpeech(torch.nn.Module):
         encoded_texts, _ = self.encoder(text_tensors,
                                         text_masks,
                                         utterance_embedding=utterance_embedding,
+                                        sentence_embedding=sentence_embedding,
                                         lang_ids=lang_ids)  # (B, Tmax, adim)
 
         if utterance_embedding is not None:
@@ -319,6 +327,7 @@ class PortaSpeech(torch.nn.Module):
                 pitch=None,
                 energy=None,
                 utterance_embedding=None,
+                sentence_embedding=None,
                 return_duration_pitch_energy=False,
                 lang_id=None,
                 duration_scaling_factor=1.0,
@@ -374,6 +383,7 @@ class PortaSpeech(torch.nn.Module):
                                                gold_pitch=pitch,
                                                gold_energy=energy,
                                                utterance_embedding=utterance_embedding.unsqueeze(0),
+                                               sentence_embedding=sentence_embedding.unsqueeze(0) if sentence_embedding is not None else None,
                                                lang_ids=lang_id,
                                                duration_scaling_factor=duration_scaling_factor,
                                                pitch_variance_scale=pitch_variance_scale,
