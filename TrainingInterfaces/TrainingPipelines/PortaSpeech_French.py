@@ -11,6 +11,8 @@ from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
 
+import sys
+
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
     if gpu_id == "cpu":
@@ -42,13 +44,11 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
                                                      corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad"),
-                                                     lang="fr",
-                                                     ctc_selection=False))
+                                                     lang="fr"))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
                                                      corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
-                                                     lang="fr",
-                                                     ctc_selection=False))
+                                                     lang="fr"))
 
     model = PortaSpeech(lang_embs=None)
     if use_wandb:

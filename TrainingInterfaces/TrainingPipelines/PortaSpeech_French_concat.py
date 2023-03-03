@@ -11,6 +11,7 @@ from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
 from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
+#from Preprocessing.sentence_embeddings.CAMEMBERTSentenceEmbeddingExtractor import CAMEMBERTSentenceEmbeddingExtractor
 
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
@@ -36,6 +37,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
+    #sentence_embedding_extractor = CAMEMBERTSentenceEmbeddingExtractor(device=device)
 
     french_datasets = list()
 
@@ -55,6 +57,8 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                                                      lang="fr",
                                                      ctc_selection=False,
                                                      sentence_embedding_extractor=sentence_embedding_extractor))
+    
+    del sentence_embedding_extractor
 
     model = PortaSpeech(lang_embs=None, utt_embed_dim=832)
     if use_wandb:
