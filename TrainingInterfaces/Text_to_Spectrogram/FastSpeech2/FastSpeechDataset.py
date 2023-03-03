@@ -137,6 +137,7 @@ class FastSpeechDataset(Dataset):
                 sentence_embedding = None
                 if sentence_embedding_extractor:
                     sentence_embedding = sentence_embedding_extractor.encode([path_to_transcript_dict[filepaths[index]]]).squeeze(0)
+                    assert type(sentence_embedding) == torch.Tensor, "Failed to extract sentence embedding."
 
                 self.datapoints.append([dataset[index][0],
                                         dataset[index][1],
