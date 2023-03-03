@@ -31,13 +31,13 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_AD_encoder_STCamembert")
+        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_NEB_encoder_STCamembert")
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
 
     train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad_STCamembert"),
+                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_STCamembert"),
                                           lang="fr",
                                           save_imgs=False,
                                           sentence_embedding_extractor=sentence_embedding_extractor)

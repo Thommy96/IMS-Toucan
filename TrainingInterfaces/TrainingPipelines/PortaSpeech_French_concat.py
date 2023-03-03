@@ -32,7 +32,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French_stCamembert_encoder")
+        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French_concat_STCamembert")
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
@@ -40,18 +40,18 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     french_datasets = list()
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_siwis_subset(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis_stCamembert"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis_STCamembert"),
                                                      lang="fr",
                                                      sentence_embedding_extractor=sentence_embedding_extractor))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad_stCamembert"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad_STCamembert"),
                                                      lang="fr",
                                                      ctc_selection=False,
                                                      sentence_embedding_extractor=sentence_embedding_extractor))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_stCamembert"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_STCamembert"),
                                                      lang="fr",
                                                      ctc_selection=False,
                                                      sentence_embedding_extractor=sentence_embedding_extractor))

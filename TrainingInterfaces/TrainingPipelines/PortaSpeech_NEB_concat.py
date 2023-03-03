@@ -31,20 +31,20 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_AD_encoder_STCamembert")
+        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_NEB_concat_STCamembert")
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
 
     train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad_STCamembert"),
+                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_STCamembert"),
                                           lang="fr",
                                           save_imgs=False,
                                           sentence_embedding_extractor=sentence_embedding_extractor)
     
     del sentence_embedding_extractor
 
-    model = PortaSpeech(lang_embs=None, sent_embed_dim=768)
+    model = PortaSpeech(lang_embs=None, utt_embed_dim=832)
     if use_wandb:
         wandb.init(
             name=f"{__name__.split('.')[-1]}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
@@ -62,7 +62,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
-               sent_emb_integration='encoder',
+               sent_emb_integration='concat',
                warmup_steps=100,
                phase_1_steps=200)
     if use_wandb:
