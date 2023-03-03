@@ -61,8 +61,8 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                resume=resume,
                use_wandb=use_wandb,
                sent_emb_integration='encoder',
-               #warmup_steps=100,
-               #phase_1_steps=200
+               warmup_steps=100,
+               phase_1_steps=200
                )
     if use_wandb:
         wandb.finish()
