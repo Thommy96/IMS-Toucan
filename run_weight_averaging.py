@@ -32,7 +32,7 @@ def load_net_porta(path):
                 except (RuntimeError, TypeError):
                     net = PortaSpeech(lang_embs=None, sent_embed_dim=768)
                     net.load_state_dict(check_dict["model"])
-    return net, check_dict["default_emb"]
+    return net, check_dict["default_emb"], check_dict["default_sent_emb"]
 
 
 def load_net_hifigan(path):
@@ -73,11 +73,12 @@ def average_checkpoints(list_of_checkpoint_paths, load_func):
     checkpoints_weights = {}
     model = None
     default_embed = None
+    default_sent_embed = None
 
     # LOAD CHECKPOINTS
     for path_to_checkpoint in list_of_checkpoint_paths:
         print("loading model {}".format(path_to_checkpoint))
-        model, default_embed = load_func(path=path_to_checkpoint)
+        model, default_embed, default_sent_embed = load_func(path=path_to_checkpoint)
         checkpoints_weights[path_to_checkpoint] = dict(model.named_parameters())
 
     # AVERAGE CHECKPOINTS
@@ -97,17 +98,19 @@ def average_checkpoints(list_of_checkpoint_paths, load_func):
     model_dict.update(dict_params)
     model.load_state_dict(model_dict)
     model.eval()
-    return model, default_embed
+    return model, default_embed, default_sent_embed
 
 
-def save_model_for_use(model, name="", default_embed=None, dict_name="model"):
+def save_model_for_use(model, name="", default_embed=None, default_sent_embed=None, dict_name="model"):
     print("saving model...")
     if default_embed is None:
         # HiFiGAN case
         torch.save({dict_name: model.state_dict()}, name)
-    else:
+    elif default_sent_embed is None:
         # TTS case
         torch.save({dict_name: model.state_dict(), "default_emb": default_embed}, name)
+    else:
+        torch.save({dict_name: model.state_dict(), "default_emb": default_embed, "default_sent_emb": default_sent_embed}, name)
     print("...done!")
 
 
@@ -133,14 +136,14 @@ def make_best_in_all():
             elif "PortaSpeech" in model_dir:
                 if "Blizzard2013" in model_dir:
                     continue
-                if "PortaSpeech_NEB" in model_dir:
+                if "old" in model_dir:
                     continue
                 checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=os.path.join(MODELS_DIR, model_dir),
                                                                   n=1)
                 if checkpoint_paths is None:
                     continue
-                averaged_model, default_embed = average_checkpoints(checkpoint_paths, load_func=load_net_porta)
-                save_model_for_use(model=averaged_model, default_embed=default_embed, name=os.path.join(MODELS_DIR, model_dir, "best.pt"))
+                averaged_model, default_embed, default_sent_embed = average_checkpoints(checkpoint_paths, load_func=load_net_porta)
+                save_model_for_use(model=averaged_model, default_embed=default_embed, default_sent_embed=default_sent_embed, name=os.path.join(MODELS_DIR, model_dir, "best.pt"))
 
 
 def count_parameters(net):
