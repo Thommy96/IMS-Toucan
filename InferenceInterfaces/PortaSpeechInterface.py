@@ -79,20 +79,25 @@ class PortaSpeechInterface(torch.nn.Module):
         self.use_lang_id = True
         try:
             self.phone2mel = PortaSpeech(weights=checkpoint["model"])  # multi speaker multi language
-        except RuntimeError:
+        except (RuntimeError, TypeError):
             try:
                 self.use_lang_id = False
                 self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                              lang_embs=None)  # multi speaker single language
-            except RuntimeError:
+            except (RuntimeError, TypeError):
                 try:
                     self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                                 lang_embs=None,
                                                 utt_embed_dim=None)  # single speaker
-                except RuntimeError:
-                    self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                lang_embs=None,
-                                                utt_embed_dim=832)  # multi speaker sentence embedding
+                except (RuntimeError, TypeError):
+                    try:
+                        self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                    lang_embs=None,
+                                                    utt_embed_dim=832)  # multi speaker single language + sentence embedding
+                    except (RuntimeError, TypeError):
+                        self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                    lang_embs=None,
+                                                    sent_embed_dim=768)  # multi speaker single language + sentence embedding
         with torch.no_grad():
             self.phone2mel.store_inverse_all()
         self.phone2mel = self.phone2mel.to(torch.device(device))
@@ -118,6 +123,10 @@ class PortaSpeechInterface(torch.nn.Module):
         #  set defaults                #
         ################################
         self.default_utterance_embedding = checkpoint["default_emb"].to(self.device)
+        try:
+            self.default_sentence_embedding = checkpoint["default_sent_emb"].to(self.device)
+        except KeyError:
+            self.default_sentence_embedding = None
         self.audio_preprocessor = AudioPreprocessor(input_sr=16000, output_sr=16000, cut_silence=True, device=self.device)
         self.phone2mel.eval()
         self.mel2wav.eval()
@@ -142,10 +151,14 @@ class PortaSpeechInterface(torch.nn.Module):
         self.default_utterance_embedding = self.style_embedding_function(spec.unsqueeze(0).to(self.device),
                                                                          spec_len.unsqueeze(0).to(self.device)).squeeze()
         
-    def set_sentence_embedding(self, prompt:str, sentence_embedding_extractor):
+    def set_sentence_embedding(self, prompt:str, sentence_embedding_extractor, sent_emb_integration='encoder'):
+        assert sent_emb_integration in ['concat', 'encoder']
         prompt_embedding = sentence_embedding_extractor.encode([prompt]).squeeze().to(self.device)
-        utt_embed_only = self.default_utterance_embedding[:64]
-        self.default_utterance_embedding = torch.cat([utt_embed_only, prompt_embedding])
+        if sent_emb_integration == 'concat':
+            utt_embed_only = self.default_utterance_embedding[:64]
+            self.default_utterance_embedding = torch.cat([utt_embed_only, prompt_embedding])
+        if sent_emb_integration == 'encoder':
+            self.default_sentence_embedding = prompt_embedding
 
     def set_language(self, lang_id):
         """
@@ -191,6 +204,7 @@ class PortaSpeechInterface(torch.nn.Module):
             mel, durations, pitch, energy = self.phone2mel(phones,
                                                            return_duration_pitch_energy=True,
                                                            utterance_embedding=self.default_utterance_embedding,
+                                                           sentence_embedding=self.default_sentence_embedding,
                                                            durations=durations,
                                                            pitch=pitch,
                                                            energy=energy,
