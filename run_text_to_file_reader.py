@@ -3,13 +3,19 @@ import os
 import torch
 
 from InferenceInterfaces.PortaSpeechInterface import PortaSpeechInterface
+from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
 
 
-def read_texts(model_id, sentence, filename, device="cpu", language="en", speaker_reference=None):
+def read_texts(model_id, sentence, filename, device="cpu", language="en", speaker_reference=None, prompt="", sent_emb_integration=""):
     tts = PortaSpeechInterface(device=device, tts_model_path=model_id)
     tts.set_language(language)
     if speaker_reference is not None:
         tts.set_utterance_embedding(speaker_reference)
+    if sent_emb_integration:
+        if not prompt:
+            prompt = sentence
+        sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
+        tts.set_sentence_embedding(prompt, sentence_embedding_extractor, sent_emb_integration=sent_emb_integration)
     if type(sentence) == str:
         sentence = [sentence]
     tts.read_to_file(text_list=sentence, file_location=filename)
