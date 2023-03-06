@@ -5,6 +5,9 @@ import numpy as np
 
 from Preprocessing.sentence_embeddings.laserembeddings.encoder import SentenceEncoder
 
+__all__ = ['BPESentenceEmbedding']
+
+
 class BPESentenceEmbedding:
     """
     LASER embeddings computation from BPE-encoded sentences.
