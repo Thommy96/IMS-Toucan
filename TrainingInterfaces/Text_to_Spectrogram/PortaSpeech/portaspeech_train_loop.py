@@ -52,6 +52,7 @@ def train_loop(net,
                phase_1_steps,
                phase_2_steps,
                use_wandb,
+               postnet_start_steps,
                sent_emb_integration='none'
                ):
     """
@@ -73,7 +74,6 @@ def train_loop(net,
     """
     assert sent_emb_integration in ['concat', 'encoder', 'none']
     steps = phase_1_steps + phase_2_steps
-    postnet_start_steps = warmup_steps // 2
     net = net.to(device)
 
     style_embedding_function = StyleEmbedding().to(device)
@@ -236,8 +236,8 @@ def train_loop(net,
             ).squeeze()
         default_sentence_embedding = train_dataset[0][9] if sent_emb_integration=='encoder' else None
         torch.save({
-            "model":        net.state_dict(),
-            "optimizer":    optimizer.state_dict(),
+            "model"       : net.state_dict(),
+            "optimizer"   : optimizer.state_dict(),
             "step_counter": step_counter,
             "scaler":       grad_scaler.state_dict(),
             "scheduler":    scheduler.state_dict(),
@@ -276,16 +276,14 @@ def train_loop(net,
         print("Steps:              {}".format(step_counter))
         if use_wandb:
             wandb.log({
-                "total_loss":    round(sum(train_losses_this_epoch) / len(train_losses_this_epoch), 3),
-                "l1_loss":       round(sum(l1_losses_total) / len(l1_losses_total), 3),
+                "total_loss"   : round(sum(train_losses_this_epoch) / len(train_losses_this_epoch), 3),
+                "l1_loss"      : round(sum(l1_losses_total) / len(l1_losses_total), 3),
                 "duration_loss": round(sum(duration_losses_total) / len(duration_losses_total), 3),
-                "pitch_loss":    round(sum(pitch_losses_total) / len(pitch_losses_total), 3),
-                "energy_loss":   round(sum(energy_losses_total) / len(energy_losses_total), 3),
-                "glow_loss":     round(sum(glow_losses_total) / len(glow_losses_total), 3) if len(
-                    glow_losses_total) != 0 else None,
-                "cycle_loss":    sum(cycle_losses_this_epoch) / len(cycle_losses_this_epoch) if len(
-                    cycle_losses_this_epoch) != 0 else None,
-                "Steps":         step_counter,
+                "pitch_loss"   : round(sum(pitch_losses_total) / len(pitch_losses_total), 3),
+                "energy_loss"  : round(sum(energy_losses_total) / len(energy_losses_total), 3),
+                "glow_loss"    : round(sum(glow_losses_total) / len(glow_losses_total), 3) if len(glow_losses_total) != 0 else None,
+                "cycle_loss"   : sum(cycle_losses_this_epoch) / len(cycle_losses_this_epoch) if len(cycle_losses_this_epoch) != 0 else None,
+                "Steps"        : step_counter,
             })
         if step_counter > steps:
             # DONE

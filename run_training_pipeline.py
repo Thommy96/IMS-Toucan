@@ -17,7 +17,7 @@ from TrainingInterfaces.TrainingPipelines.PortaSpeech_MetaCheckpoint import run 
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB import run as neb
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB_concat import run as neb_concat
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB_encoder import run as neb_encoder
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_Nancy import run as nancy
+from TrainingInterfaces.TrainingPipelines.ToucanTTS_Nancy import run as nancy
 from TrainingInterfaces.TrainingPipelines.finetuning_example import run as fine_tuning_example
 from TrainingInterfaces.TrainingPipelines.pretrain_aligner import run as aligner
 

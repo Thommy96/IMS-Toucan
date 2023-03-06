@@ -36,8 +36,8 @@ if __name__ == '__main__':
     exec_device = "cpu"
     print(f"running on {exec_device}")
 
-    #le_corbeau_et_le_renard(version="02_NEB_vgan", model_id="NEB", exec_device=exec_device, vocoder_model_path=None, biggan=True)
-    #le_corbeau_et_le_renard(version="02_AD_vgan", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=True)
+    #le_corbeau_et_le_renard(version="03_NEB_pretrain", model_id="NEB", exec_device=exec_device, vocoder_model_path=None, biggan=True)
+    #le_corbeau_et_le_renard(version="03_AD_pretrain", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=True)
 
     le_corbeau_et_le_renard(version="01_French", model_id="French", exec_device=exec_device, vocoder_model_path=None, biggan=False)
     le_corbeau_et_le_renard(version="01_French_concat_STCamembert", model_id="French_concat_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')

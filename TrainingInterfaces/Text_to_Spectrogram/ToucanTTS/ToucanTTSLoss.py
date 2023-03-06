@@ -1,6 +1,6 @@
 """
 Taken from ESPNet
-Modified by Flux
+Adapted by Flux
 """
 
 import torch
@@ -34,7 +34,6 @@ class ToucanTTSLoss(torch.nn.Module):
         # make weighted mask and apply it
         out_masks = make_non_pad_mask(olens).unsqueeze(-1).to(ys.device)
         out_masks = torch.nn.functional.pad(out_masks.transpose(1, 2), [0, ys.size(1) - out_masks.size(1), 0, 0, 0, 0], value=False).transpose(1, 2)
-
         out_weights = out_masks.float() / out_masks.sum(dim=1, keepdim=True).float()
         out_weights /= ys.size(0) * ys.size(2)
 
