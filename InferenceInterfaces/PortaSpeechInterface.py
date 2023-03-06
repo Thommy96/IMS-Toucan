@@ -156,7 +156,8 @@ class PortaSpeechInterface(torch.nn.Module):
         prompt_embedding = sentence_embedding_extractor.encode([prompt]).squeeze().to(self.device)
         if sent_emb_integration == 'concat':
             utt_embed_only = self.default_utterance_embedding[:64]
-            self.default_utterance_embedding = torch.cat([utt_embed_only, prompt_embedding])
+            # normalize?
+            self.default_utterance_embedding = torch.nn.functional.normalize(torch.cat([utt_embed_only, prompt_embedding]))
         if sent_emb_integration == 'encoder':
             self.default_sentence_embedding = prompt_embedding
 

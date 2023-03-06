@@ -73,6 +73,8 @@ class StyleEncoder(torch.nn.Module):
 
         if sentence_embeddings is not None:
             style_embs = torch.cat([style_embs, sentence_embeddings], dim=1)
+            # normalize?
+            style_embs = torch.nn.functional.normalize(style_embs)
 
         if return_all_outs:
             if return_only_ref:
