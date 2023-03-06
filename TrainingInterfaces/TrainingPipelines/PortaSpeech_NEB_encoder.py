@@ -12,6 +12,8 @@ from Utility.storage_config import PREPROCESSING_DIR
 from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
 #from Preprocessing.sentence_embeddings.CAMEMBERTSentenceEmbeddingExtractor import CAMEMBERTSentenceEmbeddingExtractor
 
+import sys
+
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
     if gpu_id == "cpu":
@@ -36,13 +38,15 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
+    sentence_embedding_extractor_name = 'STCamembert'
     #sentence_embedding_extractor = CAMEMBERTSentenceEmbeddingExtractor(device=device)
 
-    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_STCamembert"),
+    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
+                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
                                           lang="fr",
                                           save_imgs=False,
-                                          sentence_embedding_extractor=sentence_embedding_extractor)
+                                          sentence_embedding_extractor=sentence_embedding_extractor,
+                                          sentence_embedding_extractor_name=sentence_embedding_extractor_name)
     
     del sentence_embedding_extractor
 
@@ -65,7 +69,6 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                resume=resume,
                use_wandb=use_wandb,
                sent_emb_integration='encoder',
-               warmup_steps=100,
-               phase_1_steps=200)
+               phase_2_steps=0)
     if use_wandb:
         wandb.finish()
