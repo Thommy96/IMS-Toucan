@@ -30,7 +30,9 @@ class FastSpeechDataset(Dataset):
                  rebuild_cache=False,
                  ctc_selection=True,
                  save_imgs=False,
-                 sentence_embedding_extractor=None):
+                 sentence_embedding_extractor=None,
+                 sentence_embedding_extractor_name='sent_embs'):
+        self.extract_sent_embs = sentence_embedding_extractor is not None
         self.cache_dir = cache_dir
         os.makedirs(cache_dir, exist_ok=True)
         if not os.path.exists(os.path.join(cache_dir, "fast_train_cache.pt")) or rebuild_cache:
@@ -134,11 +136,6 @@ class FastSpeechDataset(Dataset):
 
                 prosodic_condition = None
 
-                sentence_embedding = None
-                if sentence_embedding_extractor:
-                    sentence_embedding = sentence_embedding_extractor.encode([path_to_transcript_dict[filepaths[index]]]).squeeze(0)
-                    assert type(sentence_embedding) == torch.Tensor, "Failed to extract sentence embedding."
-
                 self.datapoints.append([dataset[index][0],
                                         dataset[index][1],
                                         dataset[index][2],
@@ -147,8 +144,7 @@ class FastSpeechDataset(Dataset):
                                         cached_energy,
                                         cached_pitch,
                                         prosodic_condition,
-                                        filepaths[index],
-                                        sentence_embedding])
+                                        filepaths[index]])
                 self.ctc_losses.append(ctc_loss)
 
             # =============================
@@ -173,6 +169,22 @@ class FastSpeechDataset(Dataset):
                 import sys
                 print("No datapoints were prepared! Exiting...")
                 sys.exit()
+
+        elif self.extract_sent_embs:
+            if not os.path.exists(os.path.join(cache_dir, f"fast_train_cache_{sentence_embedding_extractor_name}.pt")):
+                print(f'Building new cache with added sentence embeddings using {sentence_embedding_extractor_name}')
+                # load datapoints without sentence embeddings
+                self.datapoints = torch.load(os.path.join(cache_dir, "fast_train_cache.pt"), map_location='cpu')
+                # append sentence embedding to each datapoint
+                for datapoint in tqdm(self.datapoints):
+                    sentence_embedding = sentence_embedding_extractor.encode([path_to_transcript_dict[datapoint[8]]]).squeeze(0)
+                    assert type(sentence_embedding) == torch.Tensor, "Failed to extract sentence embedding."
+                    datapoint.append(sentence_embedding)
+                # save to cache
+                torch.save(self.datapoints, os.path.join(cache_dir, f"fast_train_cache_{sentence_embedding_extractor_name}.pt"))
+            else:
+                # load datapoints from cache
+                self.datapoints = torch.load(os.path.join(cache_dir, f"fast_train_cache_{sentence_embedding_extractor_name}.pt"), map_location='cpu')
         else:
             # just load the datapoints from cache
             self.datapoints = torch.load(os.path.join(cache_dir, "fast_train_cache.pt"), map_location='cpu')
@@ -191,7 +203,7 @@ class FastSpeechDataset(Dataset):
                self.datapoints[index][6], \
                self.datapoints[index][7], \
                self.language_id, \
-               self.datapoints[index][9] # sentence embedding
+               self.datapoints[index][9] if self.extract_sent_embs else None # sentence embedding
 
     def __len__(self):
         return len(self.datapoints)
