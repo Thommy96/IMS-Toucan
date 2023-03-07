@@ -153,13 +153,13 @@ class PortaSpeechInterface(torch.nn.Module):
         
     def set_sentence_embedding(self, prompt:str, sentence_embedding_extractor, sent_emb_integration='encoder'):
         assert sent_emb_integration in ['concat', 'encoder']
-        prompt_embedding = sentence_embedding_extractor.encode([prompt]).squeeze().to(self.device)
+        prompt_embedding = sentence_embedding_extractor.encode([prompt]).to(self.device)
         if sent_emb_integration == 'concat':
-            utt_embed_only = self.default_utterance_embedding[:64]
+            utt_embed_only = self.default_utterance_embedding[:64].unsqueeze(0)
             # normalize?
-            self.default_utterance_embedding = torch.nn.functional.normalize(torch.cat([utt_embed_only, prompt_embedding]))
+            self.default_utterance_embedding = torch.nn.functional.normalize(torch.cat([utt_embed_only, prompt_embedding], dim=1)).squeeze()
         if sent_emb_integration == 'encoder':
-            self.default_sentence_embedding = prompt_embedding
+            self.default_sentence_embedding = prompt_embedding.squeeze()
 
     def set_language(self, lang_id):
         """
