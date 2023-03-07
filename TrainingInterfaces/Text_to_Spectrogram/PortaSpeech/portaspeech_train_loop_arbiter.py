@@ -29,8 +29,8 @@ def train_loop(net,  # an already initialized PortaSpeech model that should be t
                fine_tune=False,  # whether to use the provided checkpoint as basis for fine-tuning.
                phase_1_steps=80000,  # without cycle consistency objective.
                phase_2_steps=120000,  # with cycle consistency objective.
-               sent_emb_integration='none',
-               postnet_start_steps=60000
+               postnet_start_steps=60000,
+               sent_emb_integration='none'
                ):
     if type(datasets) != list:
         datasets = [datasets]
