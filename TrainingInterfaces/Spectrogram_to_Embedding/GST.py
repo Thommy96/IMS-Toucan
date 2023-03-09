@@ -57,7 +57,7 @@ class StyleEncoder(torch.nn.Module):
                                    gst_token_dim=gst_token_dim,
                                    gst_heads=gst_heads, )
 
-    def forward(self, speech, return_all_outs=False, return_only_ref=False, sentence_embeddings=None):
+    def forward(self, speech, return_all_outs=False, return_only_ref=False, sentence_embeddings=None, normalize_before=False):
         """Calculate forward propagation.
         Args:
             return_only_ref: whether to return only the reference encoder output
@@ -72,9 +72,13 @@ class StyleEncoder(torch.nn.Module):
         style_embs = self.stl(ref_embs)
 
         if sentence_embeddings is not None:
+            # normalize before concat
+            if normalize_before:
+                sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings)
             style_embs = torch.cat([style_embs, sentence_embeddings], dim=1)
-            # normalize?
-            style_embs = torch.nn.functional.normalize(style_embs)
+            # normalize after concat
+            if not normalize_before:
+                style_embs = torch.nn.functional.normalize(style_embs)
 
         if return_all_outs:
             if return_only_ref:
