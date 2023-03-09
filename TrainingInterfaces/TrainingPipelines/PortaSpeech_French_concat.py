@@ -33,30 +33,32 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French_concat_STCamembert")
+        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French_concat_norm_STCamembert")
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
+    sentence_embedding_extractor_name = 'STCamembert'
     #sentence_embedding_extractor = CAMEMBERTSentenceEmbeddingExtractor(device=device)
 
     french_datasets = list()
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_siwis_subset(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis_STCamembert"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis"),
                                                      lang="fr",
-                                                     sentence_embedding_extractor=sentence_embedding_extractor))
+                                                     sentence_embedding_extractor=sentence_embedding_extractor,
+                                                     sentence_embedding_extractor_name=sentence_embedding_extractor_name))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad_STCamembert"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad"),
                                                      lang="fr",
-                                                     ctc_selection=False,
-                                                     sentence_embedding_extractor=sentence_embedding_extractor))
+                                                     sentence_embedding_extractor=sentence_embedding_extractor,
+                                                     sentence_embedding_extractor_name=sentence_embedding_extractor_name))
 
     french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
-                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb_STCamembert"),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
                                                      lang="fr",
-                                                     ctc_selection=False,
-                                                     sentence_embedding_extractor=sentence_embedding_extractor))
+                                                     sentence_embedding_extractor=sentence_embedding_extractor,
+                                                     sentence_embedding_extractor_name=sentence_embedding_extractor_name))
     
     del sentence_embedding_extractor
 
@@ -78,6 +80,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
-               sent_emb_integration='concat')
+               sent_emb_integration='concat',
+               postnet_start_steps=10000)
     if use_wandb:
         wandb.finish()
