@@ -95,9 +95,15 @@ class PortaSpeechInterface(torch.nn.Module):
                                                     lang_embs=None,
                                                     utt_embed_dim=832)  # multi speaker single language + sentence embedding
                     except (RuntimeError, TypeError):
-                        self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                    lang_embs=None,
-                                                    sent_embed_dim=768)  # multi speaker single language + sentence embedding
+                        try:
+                            self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                        lang_embs=None,
+                                                        sent_embed_dim=768)  # multi speaker single language + sentence embedding
+                        except:
+                            self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                        lang_embs=None,
+                                                        utt_embed_dim=None,
+                                                        sent_embed_dim=768)
         with torch.no_grad():
             self.phone2mel.store_inverse_all()
         self.phone2mel = self.phone2mel.to(torch.device(device))
