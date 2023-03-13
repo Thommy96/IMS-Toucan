@@ -31,10 +31,11 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
+    name = "PortaSpeech_NEB_encoder_adapt_each_single_STCamembert"
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_NEB_encoder_single_STCamembert")
+        save_dir = os.path.join(MODELS_DIR, name)
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
@@ -53,7 +54,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     model = PortaSpeech(lang_embs=None, utt_embed_dim=None, sent_embed_dim=768)
     if use_wandb:
         wandb.init(
-            name=f"{__name__.split('.')[-1]}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
+            name=f"{name}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
             id=wandb_resume_id,  # this is None if not specified in the command line arguments.
             resume="must" if wandb_resume_id is not None else None)
     print("Training model")
