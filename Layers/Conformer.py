@@ -88,14 +88,15 @@ class Conformer(torch.nn.Module):
                                                                      positionwise_layer(*positionwise_layer_args),
                                                                      positionwise_layer(*positionwise_layer_args) if macaron_style else None,
                                                                      convolution_layer(*convolution_layer_args) if use_cnn_module else None, dropout_rate,
-                                                                     normalize_before, concat_after))
+                                                                     normalize_before, concat_after, sent_embed_dim=sent_embed_dim))
 
     def forward(self,
                 xs,
                 masks,
                 utterance_embedding=None,
                 lang_ids=None,
-                sentence_embedding=None):
+                sentence_embedding=None,
+                integrate_each_block=True):
         """
         Encode input sequence.
         Args:
@@ -115,12 +116,15 @@ class Conformer(torch.nn.Module):
             lang_embs = self.language_embedding(lang_ids)
             xs = xs + lang_embs  # offset phoneme representation by language specific offset
         
-        if self.sent_embed_dim is not None:
+        if self.sent_embed_dim is not None and not integrate_each_block:
             xs = self._integrate_with_sent_embed(hs=xs, sent_embeddings=sentence_embedding)
 
         xs = self.pos_enc(xs)
 
-        xs, masks = self.encoders(xs, masks)
+        if self.sent_embed_dim is not None and integrate_each_block:
+            xs, masks, sentence_embedding = self.encoders(xs, masks, sentence_embedding)
+        else:
+            xs, masks, sentence_embedding = self.encoders(xs, masks)
         if isinstance(xs, tuple):
             xs = xs[0]
 

@@ -132,7 +132,7 @@ class PortaSpeech(torch.nn.Module, ABC):
                                  zero_triu=False,
                                  utt_embed=None,
                                  lang_embs=lang_embs,
-                                 sent_embed_dim=sent_embed_dim)
+                                 sent_embed_dim=64) # dimension after adaptation layers
 
         # define duration predictor
         self.duration_predictor = DurationPredictor(idim=attention_dimension, n_layers=duration_predictor_layers,
@@ -183,7 +183,8 @@ class PortaSpeech(torch.nn.Module, ABC):
                                  macaron_style=use_macaron_style_in_conformer,
                                  use_cnn_module=use_cnn_in_conformer,
                                  cnn_module_kernel=conformer_decoder_kernel_size,
-                                 utt_embed=None)
+                                 utt_embed=None,
+                                 sent_embed_dim=64)
 
         # define final projection
         self.feat_out = Linear(attention_dimension, output_spectrogram_channels)
@@ -206,6 +207,15 @@ class PortaSpeech(torch.nn.Module, ABC):
             self.decoder_out_embedding_projection = Sequential(Linear(output_spectrogram_channels + utt_embed_dim,
                                                                     output_spectrogram_channels),
                                                             LayerNorm(output_spectrogram_channels))
+            
+        if sent_embed_dim is not None:
+            out_dim_adaptation = utt_embed_dim if utt_embed_dim is not None else 64
+            self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim // 2),
+                                                            torch.nn.ReLU(),
+                                                            Linear(sent_embed_dim // 2, sent_embed_dim // 4),
+                                                            torch.nn.ReLU(),
+                                                            Linear(sent_embed_dim // 4, out_dim_adaptation),
+                                                            LayerNorm(out_dim_adaptation))
 
         # post net is realized as a flow
         gin_channels = attention_dimension
@@ -326,7 +336,10 @@ class PortaSpeech(torch.nn.Module, ABC):
         if not self.multispeaker_model:
             utterance_embedding = None
 
-        if not self.prompt_model:
+        if self.prompt_model:
+            # forward sentence embedding adaptation
+            sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
+        else:
             sentence_embedding = None
 
         # forward text encoder
@@ -391,7 +404,7 @@ class PortaSpeech(torch.nn.Module, ABC):
                                                       utt_embeddings=utterance_embedding,
                                                       projection=self.decoder_in_embedding_projection)
 
-        decoded_speech, _ = self.decoder(encoded_texts, decoder_masks, utterance_embedding)
+        decoded_speech, _ = self.decoder(encoded_texts, decoder_masks, utterance_embedding, sentence_embedding=sentence_embedding)
         predicted_spectrogram_before_postnet = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.odim)
         if self.detach_postflow:
             predicted_spectrogram_before_postnet = predicted_spectrogram_before_postnet.detach()
