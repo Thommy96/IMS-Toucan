@@ -120,7 +120,7 @@ class InvConvNear(nn.Module):
             if self.no_jacobian:
                 logdet = 0
 
-        weight = weight.view(self.n_split, self.n_split, 1, 1)
+        weight = weight.view(self.n_split, self.n_split, 1, 1).to(x.device)
         z = F.conv2d(x, weight)
 
         z = z.view(b, self.n_sqz, self.n_split // self.n_sqz, c // self.n_split, t)
@@ -219,7 +219,7 @@ class InvConv(nn.Module):
 class CouplingBlock(nn.Module):
 
     def __init__(self, in_channels, hidden_channels, kernel_size, dilation_rate, n_layers,
-                 gin_channels=0, p_dropout=0, sigmoid_scale=False, wn=None):
+                 gin_channels=0, p_dropout=0., sigmoid_scale=False, wn=None, use_weightnorm=False):
         super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
@@ -231,7 +231,8 @@ class CouplingBlock(nn.Module):
         self.sigmoid_scale = sigmoid_scale
 
         start = torch.nn.Conv1d(in_channels // 2, hidden_channels, 1)
-        start = torch.nn.utils.weight_norm(start)
+        if use_weightnorm:
+            start = torch.nn.utils.weight_norm(start)
         self.start = start
         # Initializing last layer to 0 makes the affine coupling layers
         # do nothing at first.  This helps with training stability
@@ -239,7 +240,7 @@ class CouplingBlock(nn.Module):
         end.weight.data.zero_()
         end.bias.data.zero_()
         self.end = end
-        self.wn = WN(hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels, p_dropout)
+        self.wn = WN(hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels, p_dropout, use_weightnorm=use_weightnorm)
         if wn is not None:
             self.wn.in_layers = wn.in_layers
             self.wn.res_skip_layers = wn.res_skip_layers
@@ -280,15 +281,16 @@ class Glow(nn.Module):
                  dilation_rate,
                  n_blocks,
                  n_layers,
-                 g_proj,
+                 condition_integration_projection,
                  p_dropout=0.,
                  n_split=4,
                  n_sqz=2,
                  sigmoid_scale=False,
-                 gin_channels=0,
+                 text_condition_channels=0,
                  inv_conv_type='near',
                  share_cond_layers=False,
                  share_wn_layers=0,
+                 use_weightnorm=True  # If weightnorm is set to false, we can deepcopy the module, which we need to be able to do to perform SWA. Without weightnorm, the module will probably take a little longer to converge.
                  ):
         super().__init__()
 
@@ -302,13 +304,16 @@ class Glow(nn.Module):
         self.n_split = n_split
         self.n_sqz = n_sqz
         self.sigmoid_scale = sigmoid_scale
-        self.gin_channels = gin_channels
+        self.text_condition_channels = text_condition_channels
         self.share_cond_layers = share_cond_layers
         self.prior_dist = dist.Normal(0, 1)
-        self.g_proj = g_proj
-        if gin_channels != 0 and share_cond_layers:
-            cond_layer = torch.nn.Conv1d(gin_channels * n_sqz, 2 * hidden_channels * n_layers, 1)
-            self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+        self.g_proj = condition_integration_projection
+        if text_condition_channels != 0 and share_cond_layers:
+            cond_layer = torch.nn.Conv1d(text_condition_channels * n_sqz, 2 * hidden_channels * n_layers, 1)
+            if use_weightnorm:
+                self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+            else:
+                self.cond_layer = cond_layer
         wn = None
         self.flows = nn.ModuleList()
         for b in range(n_blocks):
@@ -319,8 +324,7 @@ class Glow(nn.Module):
                 self.flows.append(InvConv(channels=in_channels * n_sqz))
             if share_wn_layers > 0:
                 if b % share_wn_layers == 0:
-                    wn = WN(hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels * n_sqz,
-                            p_dropout, share_cond_layers)
+                    wn = WN(hidden_channels, kernel_size, dilation_rate, n_layers, text_condition_channels * n_sqz, p_dropout, share_cond_layers, use_weightnorm=use_weightnorm)
             self.flows.append(
                 CouplingBlock(
                     in_channels * n_sqz,
@@ -328,10 +332,11 @@ class Glow(nn.Module):
                     kernel_size=kernel_size,
                     dilation_rate=dilation_rate,
                     n_layers=n_layers,
-                    gin_channels=gin_channels * n_sqz,
+                    gin_channels=text_condition_channels * n_sqz,
                     p_dropout=p_dropout,
                     sigmoid_scale=sigmoid_scale,
-                    wn=wn
+                    wn=wn,
+                    use_weightnorm=use_weightnorm
                 ))
 
     def forward(self, tgt_mels, infer, mel_out, encoded_texts, tgt_nonpadding):

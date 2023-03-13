@@ -7,9 +7,11 @@ from abc import ABC
 
 import librosa.display as lbd
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.multiprocessing
 import torch.multiprocessing
+from matplotlib.lines import Line2D
 
 import Layers.ConditionalLayerNorm
 from Preprocessing.TextFrontend import ArticulatoryCombinedTextFrontend
@@ -88,14 +90,14 @@ def plot_progress_spec(net,
         for label_index, word_boundary in enumerate(phones):
             if word_boundary == "|":
                 word_boundaries.append(label_positions[label_index])
-        ax.vlines(x=duration_splits, colors="green", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.0)
-        ax.vlines(x=word_boundaries, colors="orange", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.0)
+        ax.vlines(x=duration_splits, colors="green", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.5)
+        ax.vlines(x=word_boundaries, colors="orange", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.5)
         pitch_array = pitch.cpu().numpy()
         for pitch_index, xrange in enumerate(zip(duration_splits[:-1], duration_splits[1:])):
             if pitch_array[pitch_index] > 0.001:
-                ax.hlines(pitch_array[pitch_index] * 1000, xmin=xrange[0], xmax=xrange[1], color="blue",
+                ax.hlines(pitch_array[pitch_index] * 1000, xmin=xrange[0], xmax=xrange[1], color="red",
                           linestyles="solid",
-                          linewidth=0.5)
+                          linewidth=1.0)
         ax.set_title(sentence)
         plt.savefig(os.path.join(os.path.join(save_dir, "spec_before"), f"{step}.png"))
         plt.clf()
@@ -176,6 +178,101 @@ def plot_progress_spec(net,
         return os.path.join(os.path.join(save_dir, "spec"), f"{step}.png")
 
 
+@torch.inference_mode()
+def plot_progress_spec_toucantts(net,
+                                 device,
+                                 save_dir,
+                                 step,
+                                 lang,
+                                 default_emb,
+                                 run_postflow=True):
+    tf = ArticulatoryCombinedTextFrontend(language=lang)
+    sentence = tf.get_example_sentence(lang=lang)
+    if sentence is None:
+        return None
+    phoneme_vector = tf.string_to_tensor(sentence).squeeze(0).to(device)
+    if run_postflow:
+        spec_before, spec_after, durations, pitch, energy = net.inference(text=phoneme_vector,
+                                                                          return_duration_pitch_energy=True,
+                                                                          utterance_embedding=default_emb,
+                                                                          lang_id=get_language_id(lang).to(device),
+                                                                          run_postflow=run_postflow)
+    else:
+        spec_before, spec_after, durations, pitch, energy = net.inference(text=phoneme_vector,
+                                                                          return_duration_pitch_energy=True,
+                                                                          utterance_embedding=default_emb,
+                                                                          lang_id=get_language_id(lang).to(device))
+    spec = spec_before.transpose(0, 1).to("cpu").numpy()
+    duration_splits, label_positions = cumsum_durations(durations.cpu().numpy())
+    os.makedirs(os.path.join(save_dir, "spec_before"), exist_ok=True)
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(9, 6))
+    lbd.specshow(spec,
+                 ax=ax,
+                 sr=16000,
+                 cmap='GnBu',
+                 y_axis='mel',
+                 x_axis=None,
+                 hop_length=256)
+    ax.yaxis.set_visible(False)
+    ax.set_xticks(duration_splits, minor=True)
+    ax.xaxis.grid(True, which='minor')
+    ax.set_xticks(label_positions, minor=False)
+    phones = tf.get_phone_string(sentence, for_plot_labels=True)
+    ax.set_xticklabels(phones)
+    word_boundaries = list()
+    for label_index, word_boundary in enumerate(phones):
+        if word_boundary == "|":
+            word_boundaries.append(label_positions[label_index])
+    ax.vlines(x=duration_splits, colors="green", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.0)
+    ax.vlines(x=word_boundaries, colors="orange", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.0)
+    pitch_array = pitch.cpu().numpy()
+    for pitch_index, xrange in enumerate(zip(duration_splits[:-1], duration_splits[1:])):
+        if pitch_array[pitch_index] > 0.001:
+            ax.hlines(pitch_array[pitch_index] * 1000, xmin=xrange[0], xmax=xrange[1], color="magenta",
+                      linestyles="solid",
+                      linewidth=1.0)
+    ax.set_title(sentence)
+    plt.savefig(os.path.join(os.path.join(save_dir, "spec_before"), f"{step}.png"))
+    plt.clf()
+    plt.close()
+
+    spec = spec_after.transpose(0, 1).to("cpu").numpy()
+    duration_splits, label_positions = cumsum_durations(durations.cpu().numpy())
+    os.makedirs(os.path.join(save_dir, "spec_after"), exist_ok=True)
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(9, 6))
+    lbd.specshow(spec,
+                 ax=ax,
+                 sr=16000,
+                 cmap='GnBu',
+                 y_axis='mel',
+                 x_axis=None,
+                 hop_length=256)
+    ax.yaxis.set_visible(False)
+    ax.set_xticks(duration_splits, minor=True)
+    ax.xaxis.grid(True, which='minor')
+    ax.set_xticks(label_positions, minor=False)
+    phones = tf.get_phone_string(sentence, for_plot_labels=True)
+    ax.set_xticklabels(phones)
+    word_boundaries = list()
+    for label_index, word_boundary in enumerate(phones):
+        if word_boundary == "|":
+            word_boundaries.append(label_positions[label_index])
+    ax.vlines(x=duration_splits, colors="green", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.0)
+    ax.vlines(x=word_boundaries, colors="orange", linestyles="dotted", ymin=0.0, ymax=8000, linewidth=1.0)
+    pitch_array = pitch.cpu().numpy()
+    for pitch_index, xrange in enumerate(zip(duration_splits[:-1], duration_splits[1:])):
+        if pitch_array[pitch_index] > 0.001:
+            ax.hlines(pitch_array[pitch_index] * 1000, xmin=xrange[0], xmax=xrange[1], color="magenta",
+                      linestyles="solid",
+                      linewidth=1.0)
+    ax.set_title(sentence)
+    plt.savefig(os.path.join(os.path.join(save_dir, "spec_after"), f"{step}.png"))
+    plt.clf()
+    plt.close()
+    return os.path.join(os.path.join(save_dir, "spec_before"), f"{step}.png"), os.path.join(
+        os.path.join(save_dir, "spec_after"), f"{step}.png")
+
+
 def cumsum_durations(durations):
     out = [0]
     for duration in durations:
@@ -203,6 +300,38 @@ def delete_old_checkpoints(checkpoint_dir, keep=5):
                                  checkpoint_list[:-keep]]
         for old_checkpoint in checkpoints_to_delete:
             os.remove(os.path.join(old_checkpoint))
+
+
+def plot_grad_flow(named_parameters):
+    """
+    Plots the gradients flowing through different layers in the net during training.
+    Can be used for checking for possible gradient vanishing / exploding problems.
+
+    Usage: Plug this function after loss.backwards() and unscaling as
+    "plot_grad_flow(self.model.named_parameters())" to visualize the gradient flow
+    """
+    ave_grads = []
+    max_grads = []
+    layers = []
+    for n, p in named_parameters:
+        if p.requires_grad and ("bias" not in n):
+            layers.append(n)
+            ave_grads.append(p.grad.abs().mean())
+            max_grads.append(p.grad.abs().max())
+    plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
+    plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
+    plt.hlines(0, 0, len(ave_grads) + 1, lw=2, color="k")
+    plt.xticks(range(0, len(ave_grads), 1), layers, rotation="vertical")
+    plt.xlim(left=0, right=len(ave_grads))
+    plt.ylim(bottom=-0.001, top=0.02)  # zoom in on the lower gradient regions
+    plt.xlabel("Layers")
+    plt.ylabel("Gradient")
+    plt.title("Gradient Flow")
+    plt.grid(True)
+    plt.legend([Line2D([0], [0], color="c", lw=4),
+                Line2D([0], [0], color="b", lw=4),
+                Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+    plt.show()
 
 
 def get_most_recent_checkpoint(checkpoint_dir, verbose=True):
@@ -495,5 +624,39 @@ def to_device(m, x):
     else:
         raise TypeError(
             "Expected torch.nn.Module or torch.tensor, " f"bot got: {type(m)}"
-            )
+        )
     return x.to(device)
+
+
+def curve_smoother(curve):
+    if len(curve) < 3:
+        return curve
+    new_curve = list()
+    for index in range(len(curve)):
+        if curve[index] != 0:
+            current_value = curve[index]
+            if index != len(curve) - 1:
+                if curve[index + 1] != 0:
+                    next_value = curve[index + 1]
+                else:
+                    next_value = curve[index]
+            if index != 0:
+                if curve[index - 1] != 0:
+                    prev_value = curve[index - 1]
+                else:
+                    prev_value = curve[index]
+            else:
+                prev_value = curve[index]
+            smooth_value = (current_value * 3 + prev_value + next_value) / 5
+            new_curve.append(smooth_value)
+        else:
+            new_curve.append(0)
+    return new_curve
+
+
+if __name__ == '__main__':
+    data = np.random.randn(50)
+    plt.plot(data, color="b")
+    smooth = curve_smoother(data)
+    plt.plot(smooth, color="g")
+    plt.show()
