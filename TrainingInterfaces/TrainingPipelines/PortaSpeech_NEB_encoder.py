@@ -34,7 +34,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_NEB_encoder_STCamembert")
+        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_NEB_encoder_single_STCamembert")
     os.makedirs(save_dir, exist_ok=True)
 
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
@@ -50,7 +50,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     
     del sentence_embedding_extractor
 
-    model = PortaSpeech(lang_embs=None, sent_embed_dim=768)
+    model = PortaSpeech(lang_embs=None, utt_embed_dim=None, sent_embed_dim=768)
     if use_wandb:
         wandb.init(
             name=f"{__name__.split('.')[-1]}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
@@ -69,6 +69,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                resume=resume,
                use_wandb=use_wandb,
                sent_emb_integration='encoder',
-               postnet_start_steps=10000)
+               postnet_start_steps=10000,
+               phase_2_steps=0)
     if use_wandb:
         wandb.finish()

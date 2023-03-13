@@ -34,11 +34,19 @@ def le_corbeau_et_le_renard(version, model_id="Meta", exec_device="cpu", speaker
 if __name__ == '__main__':
     exec_device = "cuda" if torch.cuda.is_available() else "cpu"
     exec_device = "cpu"
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = f"2"
     print(f"running on {exec_device}")
 
     #le_corbeau_et_le_renard(version="03_NEB_pretrain", model_id="NEB", exec_device=exec_device, vocoder_model_path=None, biggan=True)
     #le_corbeau_et_le_renard(version="03_AD_pretrain", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=True)
 
-    le_corbeau_et_le_renard(version="01_French", model_id="French", exec_device=exec_device, vocoder_model_path=None, biggan=False)
-    le_corbeau_et_le_renard(version="01_French_concat_STCamembert", model_id="French_concat_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')
-    le_corbeau_et_le_renard(version="01_French_encoder_STCamembert", model_id="French_encoder_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    #le_corbeau_et_le_renard(version="02_French_reference", model_id="French", exec_device=exec_device, vocoder_model_path=None, biggan=False, speaker_reference='/mount/resources/speech/corpora/Blizzard2023/NEB/EC_LFDP_NEB_00_0003_15.wav')
+    #le_corbeau_et_le_renard(version="02_French_concat_STCamembert", model_id="French_concat_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')
+    #le_corbeau_et_le_renard(version="02_French_encoder_STCamembert", model_id="French_encoder_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    #le_corbeau_et_le_renard(version="02_French_concat_norm_STCamembert", model_id="French_concat_norm_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')
+
+    #le_corbeau_et_le_renard(version="02_NEB", model_id="NEB", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+    #le_corbeau_et_le_renard(version="02_NEB_concat_STCamembert", model_id="NEB_concat_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')
+    #le_corbeau_et_le_renard(version="02_NEB_encoder_STCamembert", model_id="NEB_encoder_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    le_corbeau_et_le_renard(version="02_NEB_encoder_single_STCamembert", model_id="NEB_encoder_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
