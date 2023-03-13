@@ -120,6 +120,7 @@ def train_loop(net,
         pitch_losses_total = list()
         energy_losses_total = list()
         glow_losses_total = list()
+        sentence_style_losses_total = list()
         for batch in tqdm(train_loader):
             train_loss = 0.0
             with autocast():
@@ -131,7 +132,7 @@ def train_loop(net,
                                                             batch_of_spectrogram_lengths=batch[3].to(device),
                                                             batch_of_sentence_embeddings=batch[9].to(device) if sent_emb_integration=='concat' else None)
                     
-                    l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss = net(
+                    l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, sentence_style_loss = net(
                         text_tensors=batch[0].to(device),
                         text_lengths=batch[1].to(device),
                         gold_speech=batch[2].to(device),
@@ -155,6 +156,10 @@ def train_loop(net,
                         train_loss = train_loss + pitch_loss
                     if not torch.isnan(energy_loss):
                         train_loss = train_loss + energy_loss
+                    if sentence_style_loss is not None:
+                        if not torch.isnan(sentence_style_loss):
+                            train_loss = train_loss + sentence_style_loss
+                            sentence_style_losses_total.append(sentence_style_loss.item())
 
                 else:
                     # ======================================================
@@ -167,7 +172,7 @@ def train_loop(net,
                         batch_of_sentence_embeddings=batch[9].to(device) if sent_emb_integration=='concat' else None,
                         return_all_outs=True)
 
-                    l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, output_spectrograms = net(
+                    l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, sentence_style_loss, output_spectrograms = net(
                         text_tensors=batch[0].to(device),
                         text_lengths=batch[1].to(device),
                         gold_speech=batch[2].to(device),
@@ -191,6 +196,10 @@ def train_loop(net,
                         train_loss = train_loss + pitch_loss
                     if not torch.isnan(energy_loss):
                         train_loss = train_loss + energy_loss
+                    if sentence_style_loss is not None:
+                        if not torch.isnan(sentence_style_loss):
+                            train_loss = train_loss + sentence_style_loss
+                            sentence_style_losses_total.append(sentence_style_loss.item())
 
                     style_embedding_function.train()
                     style_embedding_of_predicted, out_list_predicted = style_embedding_function(
@@ -282,6 +291,7 @@ def train_loop(net,
                 "pitch_loss"   : round(sum(pitch_losses_total) / len(pitch_losses_total), 3),
                 "energy_loss"  : round(sum(energy_losses_total) / len(energy_losses_total), 3),
                 "glow_loss"    : round(sum(glow_losses_total) / len(glow_losses_total), 3) if len(glow_losses_total) != 0 else None,
+                "sentence_style_loss": round(sum(sentence_style_losses_total) / len(sentence_style_losses_total), 3) if len(sentence_style_losses_total) != 0 else None,
                 "cycle_loss"   : sum(cycle_losses_this_epoch) / len(cycle_losses_this_epoch) if len(cycle_losses_this_epoch) != 0 else None,
                 "Steps"        : step_counter,
             })
