@@ -162,23 +162,24 @@ class PortaSpeech(torch.nn.Module):
         # define final projection
         self.feat_out = torch.nn.Linear(attention_dimension, output_spectrogram_channels)
 
-        # define speaker embedding integrations
-        self.pitch_bottleneck = Linear(utt_embed_dim, utt_embed_dim // 2)
-        self.energy_bottleneck = Linear(utt_embed_dim, utt_embed_dim // 2)
-        self.duration_bottleneck = Linear(utt_embed_dim, utt_embed_dim // 2)
-        self.pitch_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim // 2, attention_dimension),
-                                                     LayerNorm(attention_dimension))
-        self.energy_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim // 2,
-                                                             attention_dimension),
-                                                      LayerNorm(attention_dimension))
-        self.duration_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim // 2,
-                                                               attention_dimension),
+        if utt_embed_dim is not None:
+            # define speaker embedding integrations
+            self.pitch_bottleneck = Linear(utt_embed_dim, utt_embed_dim // 2)
+            self.energy_bottleneck = Linear(utt_embed_dim, utt_embed_dim // 2)
+            self.duration_bottleneck = Linear(utt_embed_dim, utt_embed_dim // 2)
+            self.pitch_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim // 2, attention_dimension),
                                                         LayerNorm(attention_dimension))
-        self.decoder_in_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim, attention_dimension),
-                                                          LayerNorm(attention_dimension))
-        self.decoder_out_embedding_projection = Sequential(Linear(output_spectrogram_channels + utt_embed_dim,
-                                                                  output_spectrogram_channels),
-                                                           LayerNorm(output_spectrogram_channels))
+            self.energy_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim // 2,
+                                                                attention_dimension),
+                                                        LayerNorm(attention_dimension))
+            self.duration_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim // 2,
+                                                                attention_dimension),
+                                                            LayerNorm(attention_dimension))
+            self.decoder_in_embedding_projection = Sequential(Linear(attention_dimension + utt_embed_dim, attention_dimension),
+                                                            LayerNorm(attention_dimension))
+            self.decoder_out_embedding_projection = Sequential(Linear(output_spectrogram_channels + utt_embed_dim,
+                                                                    output_spectrogram_channels),
+                                                            LayerNorm(output_spectrogram_channels))
 
         # post net is realized as a flow
         gin_channels = attention_dimension
@@ -384,7 +385,7 @@ class PortaSpeech(torch.nn.Module):
                                                gold_durations=durations,
                                                gold_pitch=pitch,
                                                gold_energy=energy,
-                                               utterance_embedding=utterance_embedding.unsqueeze(0),
+                                               utterance_embedding=utterance_embedding.unsqueeze(0) if utterance_embedding is not None else None,
                                                sentence_embedding=sentence_embedding.unsqueeze(0) if sentence_embedding is not None else None,
                                                lang_ids=lang_id,
                                                duration_scaling_factor=duration_scaling_factor,
