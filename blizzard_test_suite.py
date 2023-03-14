@@ -49,4 +49,9 @@ if __name__ == '__main__':
     #le_corbeau_et_le_renard(version="02_NEB", model_id="NEB", exec_device=exec_device, vocoder_model_path=None, biggan=False)
     #le_corbeau_et_le_renard(version="02_NEB_concat_STCamembert", model_id="NEB_concat_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')
     #le_corbeau_et_le_renard(version="02_NEB_encoder_STCamembert", model_id="NEB_encoder_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
-    le_corbeau_et_le_renard(version="02_NEB_encoder_single_STCamembert", model_id="NEB_encoder_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    #le_corbeau_et_le_renard(version="02_NEB_encoder_single_STCamembert", model_id="NEB_encoder_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    #le_corbeau_et_le_renard(version="02_NEB_single", model_id="NEB_single", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+
+    #le_corbeau_et_le_renard(version="02_NEB_encoder_adapt_single_STCamembert", model_id="NEB_encoder_adapt_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    le_corbeau_et_le_renard(version="02_NEB_encoder_adapt_each_single_STCamembert", model_id="NEB_encoder_adapt_each_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    le_corbeau_et_le_renard(version="02_NEB_encoder_adapt_each_loss_single_STCamembert", model_id="NEB_encoder_adapt_each_loss_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
