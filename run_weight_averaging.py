@@ -33,7 +33,7 @@ def load_net_porta(path):
                     try:
                         net = PortaSpeech(lang_embs=None, sent_embed_dim=768)
                         net.load_state_dict(check_dict["model"])
-                    except:
+                    except (RuntimeError, TypeError):
                         net = PortaSpeech(lang_embs=None, utt_embed_dim=None, sent_embed_dim=768)
                         net.load_state_dict(check_dict["model"])
     return net, check_dict["default_emb"], check_dict["default_sent_emb"]
@@ -137,11 +137,7 @@ def make_best_in_all():
                 averaged_model, _ = average_checkpoints(checkpoint_paths, load_func=load_net_bigvgan)
                 save_model_for_use(model=averaged_model, name=os.path.join(MODELS_DIR, model_dir, "best.pt"), dict_name="generator")
 
-            elif "PortaSpeech_NEB_encoder_single" in model_dir:
-                if "Blizzard2013" in model_dir:
-                    continue
-                if "old" in model_dir:
-                    continue
+            elif "PortaSpeech_NEB_encoder_adapt_single" in model_dir:
                 checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=os.path.join(MODELS_DIR, model_dir),
                                                                   n=1)
                 if checkpoint_paths is None:
