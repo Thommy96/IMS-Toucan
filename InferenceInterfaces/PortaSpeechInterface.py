@@ -103,7 +103,8 @@ class PortaSpeechInterface(torch.nn.Module):
                             self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                                         lang_embs=None,
                                                         utt_embed_dim=None,
-                                                        sent_embed_dim=768)
+                                                        sent_embed_dim=768) # single speaker single language + sentence embedding
+                                
         with torch.no_grad():
             self.phone2mel.store_inverse_all()
         self.phone2mel = self.phone2mel.to(torch.device(device))

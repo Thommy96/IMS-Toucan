@@ -320,7 +320,10 @@ class PortaSpeech(torch.nn.Module):
                                                       utt_embeddings=utterance_embedding,
                                                       projection=self.decoder_in_embedding_projection)
 
-        decoded_speech, _ = self.decoder(encoded_texts, None, utterance_embedding, sentence_embedding=sentence_embedding)
+        decoded_speech, _ = self.decoder(encoded_texts, 
+                                         None, 
+                                         utterance_embedding, 
+                                         sentence_embedding=sentence_embedding)
         predicted_spectrogram_before_postnet = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.odim)
 
         # forward flow post-net
