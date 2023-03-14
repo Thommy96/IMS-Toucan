@@ -69,7 +69,8 @@ class PortaSpeech(torch.nn.Module):
                  utt_embed_dim=64,
                  lang_embs=8000,
                  weights=None,
-                 sent_embed_dim=None):
+                 sent_embed_dim=None,
+                 concat_sent_utt=False):
         super().__init__()
 
         # store hyperparameters
@@ -83,6 +84,7 @@ class PortaSpeech(torch.nn.Module):
         self.multilingual_model = lang_embs is not None
         self.multispeaker_model = utt_embed_dim is not None
         self.prompt_model = sent_embed_dim is not None
+        self.concat_sent_utt = concat_sent_utt
 
         # define encoder
         embed = torch.nn.Sequential(torch.nn.Linear(input_feature_dimensions, 100),
@@ -190,6 +192,10 @@ class PortaSpeech(torch.nn.Module):
                                                             torch.nn.ReLU(),
                                                             Linear(sent_embed_dim // 4, out_dim_adaptation),
                                                             LayerNorm(out_dim_adaptation))
+            
+        if concat_sent_utt and sent_embed_dim is not None and utt_embed_dim is not None:
+            self.style_embedding_adaptation = Sequential(Linear(sent_embed_dim + utt_embed_dim, utt_embed_dim),
+                                                         LayerNorm(utt_embed_dim))
 
         # post net is realized as a flow
         gin_channels = attention_dimension
@@ -240,6 +246,9 @@ class PortaSpeech(torch.nn.Module):
             sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
         else:
             sentence_embedding = None
+        
+        if self.multispeaker_model and self.prompt_model and self.concat_sent_utt:
+            utterance_embedding = self.style_embedding_adaptation(torch.cat([sentence_embedding, utterance_embedding], dim=1))
 
         # forward encoder
         text_masks = self._source_mask(text_lens)

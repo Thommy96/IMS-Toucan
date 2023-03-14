@@ -95,7 +95,8 @@ class PortaSpeech(torch.nn.Module, ABC):
                  detach_postflow=False,
                  lang_embs=8000,
                  sent_embed_dim=None,
-                 add_sent_style_loss=False):
+                 add_sent_style_loss=False,
+                 concat_sent_utt=False):
         super().__init__()
 
         # store hyperparameters
@@ -111,6 +112,7 @@ class PortaSpeech(torch.nn.Module, ABC):
         self.multispeaker_model = utt_embed_dim is not None
         self.prompt_model = sent_embed_dim is not None
         self.add_sent_style_loss = add_sent_style_loss
+        self.concat_sent_utt = concat_sent_utt
 
         # define encoder
         embed = Sequential(Linear(input_feature_dimensions, 100),
@@ -218,6 +220,10 @@ class PortaSpeech(torch.nn.Module, ABC):
                                                             torch.nn.ReLU(),
                                                             Linear(sent_embed_dim // 4, out_dim_adaptation),
                                                             LayerNorm(out_dim_adaptation))
+        
+        if concat_sent_utt and sent_embed_dim is not None and utt_embed_dim is not None:
+            self.style_embedding_adaptation = Sequential(Linear(out_dim_adaptation + utt_embed_dim, utt_embed_dim),
+                                                         LayerNorm(utt_embed_dim))
 
         # post net is realized as a flow
         gin_channels = attention_dimension
@@ -348,6 +354,12 @@ class PortaSpeech(torch.nn.Module, ABC):
             sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
         else:
             sentence_embedding = None
+        
+        if self.multispeaker_model and self.prompt_model and self.concat_sent_utt:
+            if self.add_sent_style_loss and not is_inference:
+                utterance_embedding = self.style_embedding_adaptation(torch.cat([sentence_style_gold, utterance_embedding], dim=1))
+            else:
+                utterance_embedding = self.style_embedding_adaptation(torch.cat([sentence_embedding, utterance_embedding], dim=1))
 
         # forward text encoder
         text_masks = self._source_mask(text_lens)
