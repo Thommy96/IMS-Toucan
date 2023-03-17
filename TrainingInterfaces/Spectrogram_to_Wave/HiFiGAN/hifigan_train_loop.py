@@ -44,6 +44,7 @@ def train_loop(generator,
 
     g = generator.to(device)
     d = discriminator.to(device)
+
     g.train()
     d.train()
     optimizer_g = torch.optim.RAdam(g.parameters(), betas=(0.5, 0.9), lr=0.001, weight_decay=0.0)

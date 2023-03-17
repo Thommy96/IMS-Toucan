@@ -4,7 +4,6 @@ import wandb
 from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
 from torch.nn.utils.rnn import pad_sequence
-from torch.optim.swa_utils import AveragedModel
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 
@@ -14,6 +13,10 @@ from Utility.path_to_transcript_dicts import *
 from Utility.utils import delete_old_checkpoints
 from Utility.utils import get_most_recent_checkpoint
 from Utility.utils import plot_progress_spec_toucantts
+from run_weight_averaging import average_checkpoints
+from run_weight_averaging import get_n_recent_checkpoints_paths
+from run_weight_averaging import load_net_toucan
+from run_weight_averaging import save_model_for_use
 
 
 def collate_and_pad(batch):
@@ -34,8 +37,7 @@ def train_loop(net,
                device,
                save_directory,
                batch_size,
-               phase_1_steps,
-               phase_2_steps,
+               steps,
                steps_per_checkpoint,
                lr,
                path_to_checkpoint,
@@ -50,11 +52,7 @@ def train_loop(net,
     """
     see train loop arbiter for explanations of the arguments
     """
-    steps = phase_1_steps + phase_2_steps
     net = net.to(device)
-    swa_nets = list()
-    for component in [net.encoder, net.decoder, net.duration_predictor, net.pitch_predictor, net.energy_predictor, net.pitch_embed, net.energy_embed, net.feat_out]:
-        swa_nets.append(AveragedModel(component))  # because of weight norm, we cannot apply torch builtin SWA to the postflow
 
     style_embedding_function = StyleEmbedding().to(device)
     check_dict = torch.load(path_to_embed_model, map_location=device)
@@ -76,9 +74,8 @@ def train_loop(net,
                                         collate_fn=collate_and_pad,
                                         persistent_workers=True))
         train_iters.append(iter(train_loaders[-1]))
-    optimizer = torch.optim.AdamW(net.parameters(), lr=lr)
-    scheduler = WarmupScheduler(optimizer, peak_lr=lr, warmup_steps=warmup_steps,
-                                max_steps=phase_1_steps + phase_2_steps)
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    scheduler = WarmupScheduler(optimizer, peak_lr=lr, warmup_steps=warmup_steps, max_steps=steps)
     grad_scaler = GradScaler()
     steps_run_previously = 0
     l1_losses_total = list()
@@ -86,7 +83,6 @@ def train_loop(net,
     pitch_losses_total = list()
     energy_losses_total = list()
     glow_losses_total = list()
-    cycle_losses_total = list()
 
     if resume:
         path_to_checkpoint = get_most_recent_checkpoint(checkpoint_dir=save_directory)
@@ -133,60 +129,23 @@ def train_loop(net,
 
         train_loss = 0.0
         with autocast():
-            if step_counter <= phase_1_steps:
-                # PHASE 1
-                # we sum the loss for each task, as we would do for the
-                # second order regular MAML, but we do it only over one
-                # step (i.e. iterations of inner loop = 1)
-
-                style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
-                                                           batch_of_spectrogram_lengths=batch[3].to(device))
-
-                l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss = net(
-                    text_tensors=text_tensors,
-                    text_lengths=text_lengths,
-                    gold_speech=gold_speech,
-                    speech_lengths=speech_lengths,
-                    gold_durations=gold_durations,
-                    gold_pitch=gold_pitch,
-                    gold_energy=gold_energy,
-                    utterance_embedding=style_embedding,
-                    lang_ids=lang_ids,
-                    return_mels=False,
-                    run_glow=step_counter > postnet_start_steps)
-
-            else:
-                # PHASE 2
-                # cycle objective is added to make sure the embedding function is given adequate attention
-                style_embedding_function.eval()
-                style_embedding_of_gold, out_list_gold = style_embedding_function(batch_of_spectrograms=gold_speech,
-                                                                                  batch_of_spectrogram_lengths=speech_lengths,
-                                                                                  return_all_outs=True)
-
-                l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, output_spectrograms = net(
-                    text_tensors=text_tensors,
-                    text_lengths=text_lengths,
-                    gold_speech=gold_speech,
-                    speech_lengths=speech_lengths,
-                    gold_durations=gold_durations,
-                    gold_pitch=gold_pitch,
-                    gold_energy=gold_energy,
-                    utterance_embedding=style_embedding,
-                    lang_ids=lang_ids,
-                    return_mels=True,
-                    run_glow=step_counter > postnet_start_steps or fine_tune)
-
-                style_embedding_function.train()
-                style_embedding_of_predicted, out_list_predicted = style_embedding_function(
-                    batch_of_spectrograms=output_spectrograms,
-                    batch_of_spectrogram_lengths=speech_lengths,
-                    return_all_outs=True)
-
-                cycle_dist = torch.nn.functional.l1_loss(style_embedding_of_predicted, style_embedding_of_gold.detach()) * 0.1 + \
-                             1.0 - torch.nn.functional.cosine_similarity(style_embedding_of_predicted, style_embedding_of_gold.detach()).mean()
-
-                train_loss = train_loss + cycle_dist
-                cycle_losses_total.append(cycle_dist.item())
+            # we sum the loss for each task, as we would do for the
+            # second order regular MAML, but we do it only over one
+            # step (i.e. iterations of inner loop = 1)
+            style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
+                                                       batch_of_spectrogram_lengths=batch[3].to(device))
+            l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss = net(
+                text_tensors=text_tensors,
+                text_lengths=text_lengths,
+                gold_speech=gold_speech,
+                speech_lengths=speech_lengths,
+                gold_durations=gold_durations,
+                gold_pitch=gold_pitch,
+                gold_energy=gold_energy,
+                utterance_embedding=style_embedding,
+                lang_ids=lang_ids,
+                return_mels=False,
+                run_glow=step_counter > postnet_start_steps)
 
         # then we directly update our meta-parameters without
         # the need for any task specific parameters
@@ -216,9 +175,6 @@ def train_loop(net,
         grad_scaler.step(optimizer)
         grad_scaler.update()
         scheduler.step()
-        if step_counter > 2 * warmup_steps:
-            for component, swa_net in zip([net.encoder, net.decoder, net.duration_predictor, net.pitch_predictor, net.energy_predictor, net.pitch_embed, net.energy_embed, net.feat_out], swa_nets):
-                swa_net.update_parameters(component)
 
         if step_counter % steps_per_checkpoint == 0 and step_counter != 0:
             # ==============================
@@ -230,8 +186,6 @@ def train_loop(net,
                 batch_of_spectrograms=datasets[0][0][2].unsqueeze(0).to(device),
                 batch_of_spectrogram_lengths=datasets[0][0][3].unsqueeze(0).to(device)).squeeze()
             print(f"\nTotal Steps: {step_counter}")
-            if len(cycle_losses_total) != 0:
-                print(f"Cycle Loss: {round(sum(cycle_losses_total) / len(cycle_losses_total), 3)}")
             torch.save({
                 "model"       : net.state_dict(),
                 "optimizer"   : optimizer.state_dict(),
@@ -241,10 +195,6 @@ def train_loop(net,
                 "default_emb" : default_embedding,
             },
                 os.path.join(save_directory, "checkpoint_{}.pt".format(step_counter)))
-            torch.save({
-                "model"      : net.state_dict(),
-                "default_emb": default_embedding,
-            }, os.path.join(save_directory, "best.pt".format(step_counter)))
             delete_old_checkpoints(save_directory, keep=5)
 
             if use_wandb:
@@ -254,19 +204,18 @@ def train_loop(net,
                     "pitch_loss"   : round(sum(pitch_losses_total) / len(pitch_losses_total), 5),
                     "energy_loss"  : round(sum(energy_losses_total) / len(energy_losses_total), 5),
                     "glow_loss"    : round(sum(glow_losses_total) / len(glow_losses_total), 3) if len(glow_losses_total) != 0 else None,
-                    "cycle_loss"   : sum(cycle_losses_total) / len(cycle_losses_total) if len(cycle_losses_total) != 0 else None,
                     "Steps"        : step_counter
                 })
 
             try:
                 path_to_most_recent_plot_before, \
-                    path_to_most_recent_plot_after = plot_progress_spec_toucantts(net,
-                                                                                  device,
-                                                                                  save_dir=save_directory,
-                                                                                  step=step_counter,
-                                                                                  lang=lang,
-                                                                                  default_emb=default_embedding,
-                                                                                  run_postflow=step_counter - 5 > postnet_start_steps)
+                path_to_most_recent_plot_after = plot_progress_spec_toucantts(net,
+                                                                              device,
+                                                                              save_dir=save_directory,
+                                                                              step=step_counter,
+                                                                              lang=lang,
+                                                                              default_emb=default_embedding,
+                                                                              run_postflow=step_counter - 5 > postnet_start_steps)
                 if use_wandb:
                     wandb.log({
                         "progress_plot_before": wandb.Image(path_to_most_recent_plot_before)
@@ -278,10 +227,18 @@ def train_loop(net,
             except IndexError:
                 print("generating progress plots failed.")
 
-            cycle_losses_total = list()
             l1_losses_total = list()
             duration_losses_total = list()
             pitch_losses_total = list()
             energy_losses_total = list()
             glow_losses_total = list()
+
+            if step_counter > 2 * postnet_start_steps:
+                # Run manual SWA (torch builtin doesn't work unfortunately due to the use of weight norm in the postflow)
+                checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=save_directory, n=3)
+                averaged_model, default_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
+                save_model_for_use(model=averaged_model, default_embed=default_embed, name=os.path.join(save_directory, "best.pt"))
+                check_dict = torch.load(os.path.join(save_directory, "best.pt"), map_location=device)
+                net.load_state_dict(check_dict["model"])
+
             net.train()
