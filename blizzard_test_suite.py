@@ -6,7 +6,7 @@ from InferenceInterfaces.PortaSpeechInterface import PortaSpeechInterface
 from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
 
 
-def le_corbeau_et_le_renard(version, model_id="Meta", exec_device="cpu", speaker_reference=None, vocoder_model_path=None, biggan=False, sent_emb_integration=''):
+def le_corbeau_et_le_renard(version, model_id="Meta", exec_device="cpu", speaker_reference=None, vocoder_model_path=None, biggan=False, sent_emb_integration=False):
     os.makedirs("audios", exist_ok=True)
     os.makedirs(f"audios/{version}", exist_ok=True)
     tts = PortaSpeechInterface(device=exec_device, tts_model_path=model_id, vocoder_model_path=vocoder_model_path, faster_vocoder=not biggan)
@@ -27,7 +27,7 @@ def le_corbeau_et_le_renard(version, model_id="Meta", exec_device="cpu", speaker
                                   "Maître Corbeau, sur un arbre perché, tenait en son bec un fromage. Maître Renard, par l’odeur alléché, lui tint à peu près ce langage: Et bonjour, Monsieur du Corbeau, que vous êtes joli! que vous me semblez beau! Sans mentir, si votre ramage se rapporte à votre plumage, vous êtes le Phénix des hôtes de ces bois. À ces mots le Corbeau ne se sent pas de joie, et pour montrer sa belle voix, il ouvre un large bec, laisse tomber sa proie. Le Renard s’en saisit, et dit: Mon bon Monsieur, apprenez que tout flatteur vit aux dépens de celui qui l’écoute. Cette leçon vaut bien un fromage sans doute. Le Corbeau honteux et confus jura, mais un peu tard, qu’on ne l’y prendrait plus."
                                   ]):
         if sent_emb_integration:
-            tts.set_sentence_embedding(sentence, sentence_embedding_extractor, sent_emb_integration=sent_emb_integration)
+            tts.set_sentence_embedding(sentence, sentence_embedding_extractor)
         tts.read_to_file(text_list=[sentence], file_location=f"audios/{version}/Le_corbeau_et_le_renard_{i}.wav")
 
 
@@ -49,4 +49,11 @@ if __name__ == '__main__':
     #le_corbeau_et_le_renard(version="02_NEB", model_id="NEB", exec_device=exec_device, vocoder_model_path=None, biggan=False)
     #le_corbeau_et_le_renard(version="02_NEB_concat_STCamembert", model_id="NEB_concat_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='concat')
     #le_corbeau_et_le_renard(version="02_NEB_encoder_STCamembert", model_id="NEB_encoder_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
-    le_corbeau_et_le_renard(version="02_NEB_encoder_single_STCamembert", model_id="NEB_encoder_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+    #le_corbeau_et_le_renard(version="02_NEB_encoder_single_STCamembert", model_id="NEB_encoder_single_STCamembert", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration='encoder')
+
+    le_corbeau_et_le_renard(version="03_PortaSpeech_AD", model_id="03_PortaSpeech_AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+
+    le_corbeau_et_le_renard(version="03_PortaSpeech_NEB_sent_emb_a07", model_id="03_PortaSpeech_NEB_sent_emb_a07", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration=True)
+    le_corbeau_et_le_renard(version="03_PortaSpeech_NEB_sent_emb_a05", model_id="03_PortaSpeech_NEB_sent_emb_a05", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration=True)
+    le_corbeau_et_le_renard(version="03_PortaSpeech_NEB_sent_emb_a05_loss", model_id="03_PortaSpeech_NEB_sent_emb_a05_loss", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration=True)
+
