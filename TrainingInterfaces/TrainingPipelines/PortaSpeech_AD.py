@@ -27,7 +27,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "03_PortaSpeech_AD"
+    name = "03_PortaSpeech_AD_original"
 
     if model_dir is not None:
         save_dir = model_dir
@@ -58,7 +58,9 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
-               postnet_start_steps=16000,
+               warmup_steps=200,
+               postnet_start_steps=200,
+               phase_1_steps=3000,
                phase_2_steps=0)
     if use_wandb:
         wandb.finish()
