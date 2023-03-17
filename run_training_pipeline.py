@@ -7,16 +7,12 @@ from TrainingInterfaces.TrainingPipelines.FastSpeech2_IntegrationTest import run
 from TrainingInterfaces.TrainingPipelines.HiFiGAN_Avocodo import run as hifi_codo
 from TrainingInterfaces.TrainingPipelines.JointEmbeddingFunction import run as embedding
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD import run as ad
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD_concat import run as ad_concat
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD_encoder import run as ad_encoder
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_French import run as libri
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_French_concat import run as libri_concat
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_French_encoder import run as libri_encoder
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD_sent_emb import run as ad_sent_emb
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_French import run as french
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_IntegrationTest import run as ps_integration_test
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_MetaCheckpoint import run as meta
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB import run as neb
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB_concat import run as neb_concat
-from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB_encoder import run as neb_encoder
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB_sent_emb import run as neb_sent_emb
 from TrainingInterfaces.TrainingPipelines.ToucanTTS_Nancy import run as nancy
 from TrainingInterfaces.TrainingPipelines.finetuning_example import run as fine_tuning_example
 from TrainingInterfaces.TrainingPipelines.pretrain_aligner import run as aligner
@@ -31,14 +27,10 @@ pipeline_dict = {
     "ps_it"         : ps_integration_test,
     "nancy"         : nancy,
     "ad"            : ad,
-    "ad_concat"     : ad_concat,
-    "ad_encoder"    : ad_encoder,
+    "ad_sent_emb"   : ad_sent_emb,
+    "neb_sent_emb"  : neb_sent_emb,
     "neb"           : neb,
-    "neb_concat"    : neb_concat,
-    "neb_encoder"   : neb_encoder,
-    "libri"         : libri,
-    "libri_concat"  : libri_concat,
-    "libri_encoder" : libri_encoder,
+    "french"        : french,
     "spk_embed"     : finetune_model_speaker,
     "bigvgan"       : bigvgan
 }
