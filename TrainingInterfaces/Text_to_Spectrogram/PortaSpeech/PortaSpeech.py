@@ -98,7 +98,8 @@ class PortaSpeech(torch.nn.Module, ABC):
                  sent_embed_encoder=False,
                  sent_embed_decoder=False,
                  sent_embed_each=False,
-                 concat_sent_style=False):
+                 concat_sent_style=False,
+                 use_sent_style_loss=False):
         super().__init__()
 
         # store hyperparameters
@@ -113,7 +114,8 @@ class PortaSpeech(torch.nn.Module, ABC):
         self.multilingual_model = lang_embs is not None
         self.multispeaker_model = utt_embed_dim is not None
         self.prompt_model = sent_embed_dim is not None
-        self.concat_sent_style = concat_sent_style
+        self.concat_sent_style = concat_sent_style and self.multispeaker_model and self.prompt_model
+        self.use_sent_style_loss = use_sent_style_loss and self.multispeaker_model and self.prompt_model
 
         if self.prompt_model:
             sent_embed_dim_adapted = utt_embed_dim if utt_embed_dim is not None else 64
@@ -122,7 +124,7 @@ class PortaSpeech(torch.nn.Module, ABC):
                                                             Linear(sent_embed_dim // 2, sent_embed_dim // 4),
                                                             torch.nn.ReLU(),
                                                             Linear(sent_embed_dim // 4, sent_embed_dim_adapted))
-            if self.concat_sent_style and self.multispeaker_model:
+            if self.concat_sent_style:
                 self.style_embedding_projection = Sequential(Linear(sent_embed_dim_adapted + utt_embed_dim, utt_embed_dim),
                                                          LayerNorm(utt_embed_dim))
         else:
@@ -256,6 +258,9 @@ class PortaSpeech(torch.nn.Module, ABC):
 
         # define criterion
         self.criterion = FastSpeech2Loss(use_masking=use_masking, use_weighted_masking=use_weighted_masking)
+        if self.use_sent_style_loss:
+            print("Using sentence style loss")
+            self.mse_criterion = torch.nn.MSELoss(reduction='mean')
 
     def forward(self,
                 text_tensors,
@@ -297,7 +302,8 @@ class PortaSpeech(torch.nn.Module, ABC):
         d_outs, \
         p_outs, \
         e_outs, \
-        glow_loss = self._forward(text_tensors,
+        glow_loss, \
+        sent_style_loss = self._forward(text_tensors,
                                   text_lengths,
                                   gold_speech,
                                   speech_lengths,
@@ -324,8 +330,8 @@ class PortaSpeech(torch.nn.Module, ABC):
         if return_mels:
             if after_outs is None:
                 after_outs = before_outs
-            return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, after_outs
-        return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss
+            return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, after_outs, sent_style_loss
+        return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, sent_style_loss
 
     def _forward(self,
                  text_tensors,
@@ -345,6 +351,11 @@ class PortaSpeech(torch.nn.Module, ABC):
         if not self.multilingual_model:
             lang_ids = None
 
+        if self.use_sent_style_loss:
+            if utterance_embedding is None:
+                raise TypeError("utterance embedding is None")
+            sentence_embedding_gold = utterance_embedding
+
         if not self.multispeaker_model:
             utterance_embedding = None
 
@@ -354,19 +365,32 @@ class PortaSpeech(torch.nn.Module, ABC):
         else:
             sentence_embedding = None
 
-        if self.prompt_model and self.multispeaker_model and self.concat_sent_style:
-            utterance_embedding = _concat_sent_utt(utt_embeddings=utterance_embedding, 
-                                                   sent_embeddings=sentence_embedding, 
+        if self.concat_sent_style:
+            if self.use_sent_style_loss:
+                utterance_embedding = _concat_sent_utt(utt_embeddings=utterance_embedding, 
+                                                   sent_embeddings=sentence_embedding if is_inference else sentence_embedding_gold, 
                                                    projection=self.style_embedding_projection)
+            else:
+                utterance_embedding = _concat_sent_utt(utt_embeddings=utterance_embedding, 
+                                                        sent_embeddings=sentence_embedding, 
+                                                        projection=self.style_embedding_projection)
 
         # forward text encoder
         text_masks = self._source_mask(text_lens)
 
-        encoded_texts, _ = self.encoder(text_tensors,
+
+        if self.use_sent_style_loss:
+            encoded_texts, _ = self.encoder(text_tensors,
                                         text_masks,
                                         utterance_embedding=utterance_embedding,
-                                        sentence_embedding=sentence_embedding,
+                                        sentence_embedding=sentence_embedding if is_inference else sentence_embedding_gold,
                                         lang_ids=lang_ids)  # (B, Tmax, adim)
+        else:
+            encoded_texts, _ = self.encoder(text_tensors,
+                                            text_masks,
+                                            utterance_embedding=utterance_embedding,
+                                            sentence_embedding=sentence_embedding,
+                                            lang_ids=lang_ids)  # (B, Tmax, adim)
 
         if utterance_embedding is not None:
             encoded_texts_for_pitch = _integrate_with_utt_embed(hs=encoded_texts,
@@ -421,10 +445,16 @@ class PortaSpeech(torch.nn.Module, ABC):
                                                       utt_embeddings=utterance_embedding,
                                                       projection=self.decoder_in_embedding_projection)
 
-        decoded_speech, _ = self.decoder(encoded_texts, 
-                                         decoder_masks, 
-                                         utterance_embedding, 
-                                         sentence_embedding=sentence_embedding)
+        if self.use_sent_style_loss:
+            decoded_speech, _ = self.decoder(encoded_texts, 
+                                        decoder_masks, 
+                                        utterance_embedding, 
+                                        sentence_embedding=sentence_embedding if is_inference else sentence_embedding_gold)
+        else:
+            decoded_speech, _ = self.decoder(encoded_texts, 
+                                            decoder_masks, 
+                                            utterance_embedding, 
+                                            sentence_embedding=sentence_embedding)
         predicted_spectrogram_before_postnet = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.odim)
         if self.detach_postflow:
             predicted_spectrogram_before_postnet = predicted_spectrogram_before_postnet.detach()
@@ -455,8 +485,13 @@ class PortaSpeech(torch.nn.Module, ABC):
         else:
             glow_loss = None
 
+        if self.use_sent_style_loss:
+            sent_style_loss = self.mse_criterion(sentence_embedding, sentence_embedding_gold)
+        else:
+            sent_style_loss = None
+
         if not is_inference:
-            return predicted_spectrogram_before_postnet, predicted_spectrogram_after_postnet, predicted_durations, pitch_predictions, energy_predictions, glow_loss
+            return predicted_spectrogram_before_postnet, predicted_spectrogram_after_postnet, predicted_durations, pitch_predictions, energy_predictions, glow_loss, sent_style_loss
         else:
             return predicted_spectrogram_before_postnet, predicted_spectrogram_after_postnet, predicted_durations, pitch_predictions, energy_predictions
 
