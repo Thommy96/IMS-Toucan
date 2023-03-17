@@ -69,7 +69,11 @@ class PortaSpeech(torch.nn.Module):
                  utt_embed_dim=64,
                  lang_embs=8000,
                  weights=None,
-                 sent_embed_dim=None):
+                 sent_embed_dim=None,
+                 sent_embed_encoder=False,
+                 sent_embed_decoder=False,
+                 sent_embed_each=False,
+                 concat_sent_style=False):
         super().__init__()
 
         # store hyperparameters
@@ -83,6 +87,20 @@ class PortaSpeech(torch.nn.Module):
         self.multilingual_model = lang_embs is not None
         self.multispeaker_model = utt_embed_dim is not None
         self.prompt_model = sent_embed_dim is not None
+        self.concat_sent_style = concat_sent_style and self.multispeaker_model and self.prompt_model
+
+        if self.prompt_model:
+            sent_embed_dim_adapted = utt_embed_dim if utt_embed_dim is not None else 64
+            self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim // 2),
+                                                            torch.nn.ReLU(),
+                                                            Linear(sent_embed_dim // 2, sent_embed_dim // 4),
+                                                            torch.nn.ReLU(),
+                                                            Linear(sent_embed_dim // 4, sent_embed_dim_adapted))
+            if self.concat_sent_style:
+                self.style_embedding_projection = Sequential(Linear(sent_embed_dim_adapted + utt_embed_dim, utt_embed_dim),
+                                                         LayerNorm(utt_embed_dim))
+        else:
+            sent_embed_dim_adapted = None
 
         # define encoder
         embed = torch.nn.Sequential(torch.nn.Linear(input_feature_dimensions, 100),
@@ -106,7 +124,8 @@ class PortaSpeech(torch.nn.Module):
                                  zero_triu=False,
                                  utt_embed=None,
                                  lang_embs=lang_embs,
-                                 sent_embed_dim=sent_embed_dim)
+                                 sent_embed_dim=sent_embed_dim_adapted if sent_embed_encoder else None,
+                                 sent_embed_each=sent_embed_each)
 
         # define duration predictor
         self.duration_predictor = DurationPredictor(idim=attention_dimension, n_layers=duration_predictor_layers,
@@ -157,7 +176,9 @@ class PortaSpeech(torch.nn.Module):
                                  macaron_style=use_macaron_style_in_conformer,
                                  use_cnn_module=use_cnn_in_conformer,
                                  cnn_module_kernel=conformer_decoder_kernel_size,
-                                 utt_embed=None)
+                                 utt_embed=None,
+                                 sent_embed_dim=sent_embed_dim_adapted if sent_embed_decoder else None,
+                                 sent_embed_each=sent_embed_each)
 
         # define final projection
         self.feat_out = torch.nn.Linear(attention_dimension, output_spectrogram_channels)
@@ -225,8 +246,16 @@ class PortaSpeech(torch.nn.Module):
         if not self.multispeaker_model:
             utterance_embedding = None
         
-        if not self.prompt_model:
+        if self.prompt_model:
+            # forward sentence embedding adaptation
+            sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
+        else:
             sentence_embedding = None
+
+        if self.concat_sent_style:
+            utterance_embedding = _concat_sent_utt(utt_embeddings=utterance_embedding, 
+                                                        sent_embeddings=sentence_embedding, 
+                                                        projection=self.style_embedding_projection)
 
         # forward encoder
         text_masks = self._source_mask(text_lens)
@@ -307,7 +336,10 @@ class PortaSpeech(torch.nn.Module):
                                                       utt_embeddings=utterance_embedding,
                                                       projection=self.decoder_in_embedding_projection)
 
-        decoded_speech, _ = self.decoder(encoded_texts, None, utterance_embedding)
+        decoded_speech, _ = self.decoder(encoded_texts, 
+                                         None, 
+                                         utterance_embedding=utterance_embedding,
+                                         sentence_embedding=sentence_embedding)
         predicted_spectrogram_before_postnet = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.odim)
 
         # forward flow post-net
@@ -377,22 +409,22 @@ class PortaSpeech(torch.nn.Module):
             lang_id = lang_id.unsqueeze(0).to(text.device)
 
         before_outs, \
-            after_outs, \
-            d_outs, \
-            pitch_predictions, \
-            energy_predictions = self._forward(text.unsqueeze(0),
-                                               ilens,
-                                               gold_durations=durations,
-                                               gold_pitch=pitch,
-                                               gold_energy=energy,
-                                               utterance_embedding=utterance_embedding.unsqueeze(0) if utterance_embedding is not None else None,
-                                               sentence_embedding=sentence_embedding.unsqueeze(0) if sentence_embedding is not None else None,
-                                               lang_ids=lang_id,
-                                               duration_scaling_factor=duration_scaling_factor,
-                                               pitch_variance_scale=pitch_variance_scale,
-                                               energy_variance_scale=energy_variance_scale,
-                                               pause_duration_scaling_factor=pause_duration_scaling_factor,
-                                               device=device)
+        after_outs, \
+        d_outs, \
+        pitch_predictions, \
+        energy_predictions = self._forward(text.unsqueeze(0),
+                                            ilens,
+                                            gold_durations=durations,
+                                            gold_pitch=pitch,
+                                            gold_energy=energy,
+                                            utterance_embedding=utterance_embedding.unsqueeze(0) if utterance_embedding is not None else None,
+                                            sentence_embedding=sentence_embedding.unsqueeze(0) if sentence_embedding is not None else None,
+                                            lang_ids=lang_id,
+                                            duration_scaling_factor=duration_scaling_factor,
+                                            pitch_variance_scale=pitch_variance_scale,
+                                            energy_variance_scale=energy_variance_scale,
+                                            pause_duration_scaling_factor=pause_duration_scaling_factor,
+                                            device=device)
         if return_duration_pitch_energy:
             return after_outs[0], d_outs[0], pitch_predictions[0], energy_predictions[0]
         return after_outs[0]
@@ -429,6 +461,12 @@ def _integrate_with_utt_embed(hs, utt_embeddings, projection):
     embeddings_expanded = torch.nn.functional.normalize(utt_embeddings).unsqueeze(1).expand(-1, hs.size(1), -1)
     hs = projection(torch.cat([hs, embeddings_expanded], dim=-1))
     return hs
+
+def _concat_sent_utt(utt_embeddings, sent_embeddings, projection):
+    utt_embeddings_norm = torch.nn.functional.normalize(utt_embeddings)
+    sent_embeddings_norm = torch.nn.functional.normalize(sent_embeddings)
+    utt_embeddings_enriched = projection(torch.cat([utt_embeddings_norm, sent_embeddings_norm], dim=1))
+    return utt_embeddings_enriched
 
 
 def _scale_variance(sequence, scale):

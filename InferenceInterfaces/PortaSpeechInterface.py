@@ -44,7 +44,7 @@ class PortaSpeechInterface(torch.nn.Module):
         self.device = device
         if not tts_model_path.endswith(".pt"):
             # default to shorthand system
-            tts_model_path = os.path.join(MODELS_DIR, f"PortaSpeech_{tts_model_path}", "best.pt")
+            tts_model_path = os.path.join(MODELS_DIR, tts_model_path, "best.pt")
         if vocoder_model_path is None:
             if faster_vocoder:
                 vocoder_model_path = os.path.join(MODELS_DIR, "Avocodo", "best.pt")
@@ -93,17 +93,21 @@ class PortaSpeechInterface(torch.nn.Module):
                     try:
                         self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                                     lang_embs=None,
-                                                    utt_embed_dim=832)  # multi speaker single language + sentence embedding
+                                                    sent_embed_dim=768,
+                                                    sent_embed_encoder=True, 
+                                                    sent_embed_decoder=True, 
+                                                    sent_embed_each=True)  # multi speaker single language + sentence embedding, a05
                     except (RuntimeError, TypeError):
                         try:
                             self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                        lang_embs=None,
-                                                        sent_embed_dim=768)  # multi speaker single language + sentence embedding
-                        except:
+                                                    lang_embs=None,
+                                                    sent_embed_dim=768,
+                                                    concat_sent_style=True)  # multi speaker single language + sentence embedding, a07
+                        except (RuntimeError, TypeError):
                             self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                                         lang_embs=None,
                                                         utt_embed_dim=None,
-                                                        sent_embed_dim=768)
+                                                        sent_embed_dim=768) # single speaker single language + sentence embedding
         with torch.no_grad():
             self.phone2mel.store_inverse_all()
         self.phone2mel = self.phone2mel.to(torch.device(device))
@@ -157,20 +161,9 @@ class PortaSpeechInterface(torch.nn.Module):
         self.default_utterance_embedding = self.style_embedding_function(spec.unsqueeze(0).to(self.device),
                                                                          spec_len.unsqueeze(0).to(self.device)).squeeze()
         
-    def set_sentence_embedding(self, prompt:str, sentence_embedding_extractor, sent_emb_integration='encoder'):
-        assert sent_emb_integration in ['concat', 'encoder']
-        prompt_embedding = sentence_embedding_extractor.encode([prompt]).to(self.device)
-        if sent_emb_integration == 'concat':
-            utt_embed_only = self.default_utterance_embedding[:64].unsqueeze(0)
-            # normalize?
-            #self.default_utterance_embedding = torch.nn.functional.normalize(torch.cat([utt_embed_only, prompt_embedding], dim=1)).squeeze()
-            #prompt_embedding = torch.nn.functional.normalize(prompt_embedding)
-            # normalize sentence embedding without changing utterance embedding
-            prompt_embedding = torch.nn.functional.normalize(torch.cat([utt_embed_only, prompt_embedding], dim=1)).squeeze()[64:].unsqueeze(0)
-            #prompt_embedding = torch.nn.functional.normalize(prompt_embedding)
-            self.default_utterance_embedding = torch.cat([utt_embed_only, prompt_embedding], dim=1).squeeze()
-        if sent_emb_integration == 'encoder':
-            self.default_sentence_embedding = prompt_embedding.squeeze()
+    def set_sentence_embedding(self, prompt:str, sentence_embedding_extractor):
+        prompt_embedding = sentence_embedding_extractor.encode([prompt]).squeeze().to(self.device)
+        self.default_sentence_embedding = prompt_embedding
 
     def set_language(self, lang_id):
         """

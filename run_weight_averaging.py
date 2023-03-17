@@ -16,26 +16,26 @@ def load_net_porta(path):
     check_dict = torch.load(path, map_location=torch.device("cpu"))
     try:
         net = PortaSpeech()
-        net.load_state_dict(check_dict["model"])
+        net.load_state_dict(check_dict["model"])  # multi speaker multi language
     except (RuntimeError, TypeError):
         try:
             net = PortaSpeech(lang_embs=None)
-            net.load_state_dict(check_dict["model"])
+            net.load_state_dict(check_dict["model"]) # multi speaker single language
         except (RuntimeError, TypeError):
             try:
                 net = PortaSpeech(lang_embs=None, utt_embed_dim=None)
-                net.load_state_dict(check_dict["model"])
+                net.load_state_dict(check_dict["model"]) # single speaker
             except (RuntimeError, TypeError):
                 try:
-                    net = PortaSpeech(lang_embs=None, utt_embed_dim=832)
-                    net.load_state_dict(check_dict["model"])
+                    net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True) #a05
+                    net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                 except (RuntimeError, TypeError):
                     try:
-                        net = PortaSpeech(lang_embs=None, sent_embed_dim=768)
-                        net.load_state_dict(check_dict["model"])
-                    except:
+                        net = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True) #a07
+                        net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
+                    except (RuntimeError, TypeError):
                         net = PortaSpeech(lang_embs=None, utt_embed_dim=None, sent_embed_dim=768)
-                        net.load_state_dict(check_dict["model"])
+                        net.load_state_dict(check_dict["model"]) # single speaker single language + sentence embedding
     return net, check_dict["default_emb"], check_dict["default_sent_emb"]
 
 
@@ -137,11 +137,7 @@ def make_best_in_all():
                 averaged_model, _ = average_checkpoints(checkpoint_paths, load_func=load_net_bigvgan)
                 save_model_for_use(model=averaged_model, name=os.path.join(MODELS_DIR, model_dir, "best.pt"), dict_name="generator")
 
-            elif "PortaSpeech_NEB_encoder_single" in model_dir:
-                if "Blizzard2013" in model_dir:
-                    continue
-                if "old" in model_dir:
-                    continue
+            elif "03_PortaSpeech_NEB_sent_emb" in model_dir:
                 checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=os.path.join(MODELS_DIR, model_dir),
                                                                   n=1)
                 if checkpoint_paths is None:
