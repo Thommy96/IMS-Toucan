@@ -37,6 +37,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     a05: integrate before each encoder and decoder layer
     a06: integrate before each encoder and decoder layer and postnet
     a07: concatenate with style embedding and apply projection
+    a08: concatenate with style embedding
     loss: additionally use sentence style loss
     """
 
@@ -69,8 +70,10 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
         else:
             model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True)
     if "a03" in name:
-        #TODO
-        pass
+        if "loss" in name:
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True, use_sent_style_loss=True)
+        else:
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True)
     if "a04" in name:
         if "loss" in name:
             model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_each=True, use_sent_style_loss=True)
@@ -82,9 +85,16 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
         else:
             model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True)
     if "a06" in name:
-        #TODO
-        pass
+        if "loss" in name:
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True, use_sent_style_loss=True)
+        else:
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True)
     if "a07" in name:
+        if "loss" in name:
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_concat_projection=True, use_sent_style_loss=True)
+        else:
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_concat_projection=True)
+    if "a08" in name:
         if "loss" in name:
             model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_sent_style_loss=True)
         else:
@@ -107,7 +117,9 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
+               warmup_steps=8000,
                postnet_start_steps=16000,
+               phase_1_steps=80000,
                phase_2_steps=0)
     if use_wandb:
         wandb.finish()

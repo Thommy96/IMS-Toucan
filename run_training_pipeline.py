@@ -9,6 +9,7 @@ from TrainingInterfaces.TrainingPipelines.JointEmbeddingFunction import run as e
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD import run as ad
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD_sent_emb import run as ad_sent_emb
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_French import run as french
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_French_sent_emb import run as french_sent_emb
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_IntegrationTest import run as ps_integration_test
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_MetaCheckpoint import run as meta
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB import run as neb
@@ -18,21 +19,22 @@ from TrainingInterfaces.TrainingPipelines.finetuning_example import run as fine_
 from TrainingInterfaces.TrainingPipelines.pretrain_aligner import run as aligner
 
 pipeline_dict = {
-    "meta"          : meta,
-    "embedding"     : embedding,
-    "hifi_codo"     : hifi_codo,
-    "aligner"       : aligner,
-    "fine_ex"       : fine_tuning_example,
-    "fs_it"         : fs_integration_test,
-    "ps_it"         : ps_integration_test,
-    "nancy"         : nancy,
-    "ad"            : ad,
-    "ad_sent_emb"   : ad_sent_emb,
-    "neb_sent_emb"  : neb_sent_emb,
-    "neb"           : neb,
-    "french"        : french,
-    "spk_embed"     : finetune_model_speaker,
-    "bigvgan"       : bigvgan
+    "meta"              : meta,
+    "embedding"         : embedding,
+    "hifi_codo"         : hifi_codo,
+    "aligner"           : aligner,
+    "fine_ex"           : fine_tuning_example,
+    "fs_it"             : fs_integration_test,
+    "ps_it"             : ps_integration_test,
+    "nancy"             : nancy,
+    "ad"                : ad,
+    "ad_sent_emb"       : ad_sent_emb,
+    "neb_sent_emb"      : neb_sent_emb,
+    "neb"               : neb,
+    "french"            : french,
+    "french_sent_emb"   : french_sent_emb,
+    "spk_embed"         : finetune_model_speaker,
+    "bigvgan"           : bigvgan
 }
 
 if __name__ == '__main__':

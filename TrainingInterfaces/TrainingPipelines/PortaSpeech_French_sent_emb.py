@@ -2,6 +2,7 @@ import time
 
 import torch
 import wandb
+from torch.utils.data import ConcatDataset
 
 from TrainingInterfaces.Text_to_Spectrogram.PortaSpeech.PortaSpeech import PortaSpeech
 from TrainingInterfaces.Text_to_Spectrogram.PortaSpeech.portaspeech_train_loop_arbiter import train_loop
@@ -28,7 +29,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "03_PortaSpeech_AD_sent_emb_a06_test"
+    name = "03_PortaSpeech_French_sent_emb_a06_loss"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -50,12 +51,25 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
     sentence_embedding_extractor_name = 'STCamembert'
 
-    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
-                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad"),
-                                          lang="fr",
-                                          save_imgs=False,
-                                          sentence_embedding_extractor=sentence_embedding_extractor,
-                                          sentence_embedding_extractor_name=sentence_embedding_extractor_name)
+    french_datasets = list()
+
+    french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_siwis_subset(),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "siwis"),
+                                                     lang="fr",
+                                                     sentence_embedding_extractor=sentence_embedding_extractor,
+                                                     sentence_embedding_extractor_name=sentence_embedding_extractor_name))
+
+    french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_ad(),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023ad"),
+                                                     lang="fr",
+                                                     sentence_embedding_extractor=sentence_embedding_extractor,
+                                                     sentence_embedding_extractor_name=sentence_embedding_extractor_name))
+
+    french_datasets.append(prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard2023_neb(),
+                                                     corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2023neb"),
+                                                     lang="fr",
+                                                     sentence_embedding_extractor=sentence_embedding_extractor,
+                                                     sentence_embedding_extractor_name=sentence_embedding_extractor_name))
     
     del sentence_embedding_extractor
 
@@ -107,7 +121,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
             resume="must" if wandb_resume_id is not None else None)
     print("Training model")
     train_loop(net=model,
-               datasets=[train_set],
+               datasets=ConcatDataset(french_datasets),
                device=device,
                save_directory=save_dir,
                batch_size=8,
@@ -117,9 +131,9 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
-               warmup_steps=200,
-               postnet_start_steps=200,
-               phase_1_steps=3000,
+               warmup_steps=8000,
+               postnet_start_steps=16000,
+               phase_1_steps=80000,
                phase_2_steps=0)
     if use_wandb:
         wandb.finish()

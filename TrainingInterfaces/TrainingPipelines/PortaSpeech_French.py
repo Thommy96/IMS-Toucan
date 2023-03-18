@@ -30,10 +30,12 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
+    name = "03_PortaSpeech_French"
+
     if model_dir is not None:
         save_dir = model_dir
     else:
-        save_dir = os.path.join(MODELS_DIR, "PortaSpeech_French")
+        save_dir = os.path.join(MODELS_DIR, name)
     os.makedirs(save_dir, exist_ok=True)
 
     french_datasets = list()
@@ -53,7 +55,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     model = PortaSpeech(lang_embs=None)
     if use_wandb:
         wandb.init(
-            name=f"{__name__.split('.')[-1]}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
+            name=f"{name}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,
             id=wandb_resume_id,  # this is None if not specified in the command line arguments.
             resume="must" if wandb_resume_id is not None else None)
     print("Training model")
@@ -68,6 +70,9 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
-               postnet_start_steps=10000)
+               warmup_steps=8000,
+               postnet_start_steps=16000,
+               phase_1_steps=80000,
+               phase_2_steps=0)
     if use_wandb:
         wandb.finish()
