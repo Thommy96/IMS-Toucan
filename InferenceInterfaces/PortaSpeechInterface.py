@@ -90,24 +90,56 @@ class PortaSpeechInterface(torch.nn.Module):
                                                 lang_embs=None,
                                                 utt_embed_dim=None)  # single speaker
                 except (RuntimeError, TypeError):
-                    try:
-                        self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                    lang_embs=None,
-                                                    sent_embed_dim=768,
-                                                    sent_embed_encoder=True, 
-                                                    sent_embed_decoder=True, 
-                                                    sent_embed_each=True)  # multi speaker single language + sentence embedding, a05
-                    except (RuntimeError, TypeError):
-                        try:
-                            self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                    lang_embs=None,
-                                                    sent_embed_dim=768,
-                                                    concat_sent_style=True)  # multi speaker single language + sentence embedding, a07
-                        except (RuntimeError, TypeError):
-                            self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                        lang_embs=None,
-                                                        utt_embed_dim=None,
-                                                        sent_embed_dim=768) # single speaker single language + sentence embedding
+                    sent_embed_dim=None
+                    sent_embed_encoder=False
+                    sent_embed_decoder=False
+                    sent_embed_each=False
+                    concat_sent_style=False
+                    use_concat_projection=False
+                    sent_embed_postnet=False
+                    if "a01" in tts_model_path:
+                        sent_embed_dim=768
+                        sent_embed_encoder=True
+                    if "a02" in tts_model_path:
+                        sent_embed_dim=768
+                        sent_embed_encoder=True
+                        sent_embed_decoder=True
+                    if "a03" in tts_model_path:
+                        sent_embed_dim=768
+                        sent_embed_encoder=True
+                        sent_embed_decoder=True
+                        sent_embed_postnet=True
+                    if "a04" in tts_model_path:
+                        sent_embed_dim=768
+                        sent_embed_encoder=True
+                        sent_embed_each=True
+                    if "a05" in tts_model_path:
+                        sent_embed_dim=768
+                        sent_embed_encoder=True
+                        sent_embed_decoder=True
+                        sent_embed_each=True
+                    if "a06" in tts_model_path:
+                        sent_embed_dim=768
+                        sent_embed_encoder=True
+                        sent_embed_decoder=True
+                        sent_embed_each=True
+                        sent_embed_postnet=True
+                    if "a07" in tts_model_path:
+                        sent_embed_dim=768
+                        concat_sent_style=True
+                        use_concat_projection=True
+                    if "a08" in tts_model_path:
+                        sent_embed_dim=768
+                        concat_sent_style=True
+                    self.phone2mel = PortaSpeech(weights=checkpoint["model"],
+                                                                    lang_embs=None,
+                                                                    sent_embed_dim=sent_embed_dim,
+                                                                    sent_embed_encoder=sent_embed_encoder,
+                                                                    sent_embed_decoder=sent_embed_decoder,
+                                                                    sent_embed_each=sent_embed_each,
+                                                                    concat_sent_style=concat_sent_style,
+                                                                    use_concat_projection=use_concat_projection,
+                                                                    sent_embed_postnet=sent_embed_postnet)
         with torch.no_grad():
             self.phone2mel.store_inverse_all()
         self.phone2mel = self.phone2mel.to(torch.device(device))
