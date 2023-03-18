@@ -9,12 +9,15 @@ from TrainingInterfaces.TrainingPipelines.JointEmbeddingFunction import run as e
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD import run as ad
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_AD_sent_emb import run as ad_sent_emb
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_French import run as french
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_FrenchPretraining import run as french_pretrain
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_French_sent_emb import run as french_sent_emb
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_IntegrationTest import run as ps_integration_test
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_MetaCheckpoint import run as meta
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB import run as neb
 from TrainingInterfaces.TrainingPipelines.PortaSpeech_NEB_sent_emb import run as neb_sent_emb
 from TrainingInterfaces.TrainingPipelines.ToucanTTS_Nancy import run as nancy
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_Blizzard2013 import run as blizzard2013
+from TrainingInterfaces.TrainingPipelines.PortaSpeech_Blizzard2013_sent_emb import run as blizzard2013_sent_emb
 from TrainingInterfaces.TrainingPipelines.finetuning_example import run as fine_tuning_example
 from TrainingInterfaces.TrainingPipelines.pretrain_aligner import run as aligner
 
@@ -32,7 +35,10 @@ pipeline_dict = {
     "neb_sent_emb"      : neb_sent_emb,
     "neb"               : neb,
     "french"            : french,
+    "french_pretrain"   : french_pretrain,
     "french_sent_emb"   : french_sent_emb,
+    "blizzard2013"      : blizzard2013,
+    "blizzard2013_sent_emb" : blizzard2013_sent_emb,
     "spk_embed"         : finetune_model_speaker,
     "bigvgan"           : bigvgan
 }

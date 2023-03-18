@@ -11,6 +11,7 @@ from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
 from Preprocessing.sentence_embeddings.STSentenceEmbeddingExtractor import STSentenceEmbeddingExtractor
+from Preprocessing.sentence_embeddings.LEALLASentenceEmbeddingExtractor import LEALLASentenceEmbeddingExtractor
 
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
@@ -29,7 +30,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "03_PortaSpeech_French_sent_emb_a06_loss"
+    name = "04_PortaSpeech_French_sent_emb_a01_loss"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -48,8 +49,12 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
         save_dir = os.path.join(MODELS_DIR, name)
     os.makedirs(save_dir, exist_ok=True)
 
-    sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
-    sentence_embedding_extractor_name = 'STCamembert'
+    #sentence_embedding_extractor = STSentenceEmbeddingExtractor(model='camembert')
+    #sentence_embedding_extractor_name = 'STCamembert'
+
+    #sentence_embedding_extractor = LEALLASentenceEmbeddingExtractor()
+    sentence_embedding_extractor = "placeholder because tensorflow won't release memory after delete"
+    sentence_embedding_extractor_name = 'LEALLA'
 
     french_datasets = list()
 
@@ -73,46 +78,50 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     
     del sentence_embedding_extractor
 
+    sent_embed_dim = 768
+    if sentence_embedding_extractor_name == 'LEALLA':
+        sent_embed_dim = 192
+
     if "a01" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True)
     if "a02" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True)
     if "a03" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True)
     if "a04" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_each=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_each=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_each=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_each=True)
     if "a05" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True)
     if "a06" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True)
     if "a07" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_concat_projection=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, concat_sent_style=True, use_concat_projection=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_concat_projection=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, concat_sent_style=True, use_concat_projection=True)
     if "a08" in name:
         if "loss" in name:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_sent_style_loss=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, concat_sent_style=True, use_sent_style_loss=True)
         else:
-            model = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True)
+            model = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, concat_sent_style=True)
 
     if use_wandb:
         wandb.init(
@@ -132,7 +141,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                resume=resume,
                use_wandb=use_wandb,
                warmup_steps=8000,
-               postnet_start_steps=16000,
+               postnet_start_steps=9000,
                phase_1_steps=80000,
                phase_2_steps=0)
     if use_wandb:

@@ -35,7 +35,7 @@ def test_sentence(version, model_id="Meta", exec_device="cpu", speaker_reference
     os.makedirs(f"audios/{version}", exist_ok=True)
     tts = PortaSpeechInterface(device=exec_device, tts_model_path=model_id, vocoder_model_path=vocoder_model_path, faster_vocoder=not biggan)
     tts.set_language("fr")
-    sentence = "dit l'inconnu. Oh! J'avais bien faim, répondit-elle, mais de voir des batteries ça m'écoeure, je n'ai plus d'appétit. Bah! Bah! Ça te viendra en mangeant, dit le Chourineur;, et la cuisine est fameuse au Lapin-Blanc."
+    sentence = "Je suis en colère, c'est injuste."
     if speaker_reference is not None:
         tts.set_utterance_embedding(speaker_reference)
     if sent_emb_integration:
@@ -73,7 +73,8 @@ if __name__ == '__main__':
     #le_corbeau_et_le_renard(version="03_PortaSpeech_NEB_sent_emb_a07", model_id="03_PortaSpeech_NEB_sent_emb_a07", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration=True)
     #le_corbeau_et_le_renard(version="03_PortaSpeech_NEB_sent_emb_a08", model_id="03_PortaSpeech_NEB_sent_emb_a08", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration=True)
 
-    speaker_reference = "/mount/resources/speech/corpora/Blizzard2023/AD/DIVERS_BOOK_AD_01_0001_32.wav"
+    #speaker_reference = "/mount/resources/speech/corpora/Blizzard2023/AD/DIVERS_BOOK_AD_01_0001_32.wav"
+    speaker_reference = None
 
     #le_corbeau_et_le_renard(version="03_PortaSpeech_French_ref", model_id="03_PortaSpeech_French", exec_device=exec_device, vocoder_model_path=None, biggan=False, speaker_reference=speaker_reference)
     #le_corbeau_et_le_renard(version="03_PortaSpeech_French_sent_emb_a01", model_id="03_PortaSpeech_French_sent_emb_a01", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_emb_integration=True)
