@@ -15,4 +15,4 @@ class LEALLASentenceEmbeddingExtractor(SentenceEmbeddingExtractor):
         self.model = hub.KerasLayer("https://tfhub.dev/google/LEALLA/LEALLA-base/1")
 
     def encode(self, sentences: list[str]) -> torch.Tensor:
-        return torch.as_tensor(self.model(tf.constant(sentences)))
+        return torch.as_tensor(self.model(tf.constant(sentences)).numpy())

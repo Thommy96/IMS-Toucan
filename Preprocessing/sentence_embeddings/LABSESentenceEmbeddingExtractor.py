@@ -16,4 +16,4 @@ class LABSESentenceEmbeddingExtractor(SentenceEmbeddingExtractor):
         self.model = hub.KerasLayer("https://tfhub.dev/google/LaBSE/2")
 
     def encode(self, sentences: list[str]) -> torch.Tensor:
-        return torch.as_tensor(self.model(self.tokenizer(tf.constant(sentences)))['default'])
+        return torch.as_tensor(self.model(self.tokenizer(tf.constant(sentences)))['default'].numpy())
