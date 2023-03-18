@@ -73,7 +73,9 @@ class PortaSpeech(torch.nn.Module):
                  sent_embed_encoder=False,
                  sent_embed_decoder=False,
                  sent_embed_each=False,
-                 concat_sent_style=False):
+                 concat_sent_style=False,
+                 use_concat_projection=False,
+                 sent_embed_postnet=False):
         super().__init__()
 
         # store hyperparameters
@@ -88,6 +90,8 @@ class PortaSpeech(torch.nn.Module):
         self.multispeaker_model = utt_embed_dim is not None
         self.prompt_model = sent_embed_dim is not None
         self.concat_sent_style = concat_sent_style and self.multispeaker_model and self.prompt_model
+        self.use_concat_projection = use_concat_projection and self.concat_sent_style
+        self.sent_embed_postnet = sent_embed_postnet and self.prompt_model
 
         if self.prompt_model:
             sent_embed_dim_adapted = utt_embed_dim if utt_embed_dim is not None else 64
@@ -97,8 +101,11 @@ class PortaSpeech(torch.nn.Module):
                                                             torch.nn.ReLU(),
                                                             Linear(sent_embed_dim // 4, sent_embed_dim_adapted))
             if self.concat_sent_style:
-                self.style_embedding_projection = Sequential(Linear(sent_embed_dim_adapted + utt_embed_dim, utt_embed_dim),
-                                                         LayerNorm(utt_embed_dim))
+                if self.use_concat_projection:
+                    self.style_embedding_projection = Sequential(Linear(sent_embed_dim_adapted + utt_embed_dim, utt_embed_dim),
+                                                            LayerNorm(utt_embed_dim))
+                else:
+                    utt_embed_dim = utt_embed_dim + sent_embed_dim_adapted
         else:
             sent_embed_dim_adapted = None
 
@@ -201,6 +208,11 @@ class PortaSpeech(torch.nn.Module):
             self.decoder_out_embedding_projection = Sequential(Linear(output_spectrogram_channels + utt_embed_dim,
                                                                     output_spectrogram_channels),
                                                             LayerNorm(output_spectrogram_channels))
+            
+        if self.sent_embed_postnet:
+            self.decoder_out_sent_emb_projection = Sequential(Linear(output_spectrogram_channels + sent_embed_dim_adapted,
+                                                                    output_spectrogram_channels),
+                                                            LayerNorm(output_spectrogram_channels))
 
         # post net is realized as a flow
         gin_channels = attention_dimension
@@ -255,7 +267,7 @@ class PortaSpeech(torch.nn.Module):
         if self.concat_sent_style:
             utterance_embedding = _concat_sent_utt(utt_embeddings=utterance_embedding, 
                                                         sent_embeddings=sentence_embedding, 
-                                                        projection=self.style_embedding_projection)
+                                                        projection=self.style_embedding_projection if self.use_concat_projection else None)
 
         # forward encoder
         text_masks = self._source_mask(text_lens)
@@ -347,8 +359,17 @@ class PortaSpeech(torch.nn.Module):
             before_enriched = _integrate_with_utt_embed(hs=predicted_spectrogram_before_postnet,
                                                         utt_embeddings=utterance_embedding,
                                                         projection=self.decoder_out_embedding_projection)
+            if self.sent_embed_postnet:
+                before_enriched = _integrate_with_sent_embed(hs=before_enriched,
+                                                                sent_embeddings=sentence_embedding,
+                                                                projection=self.decoder_out_sent_emb_projection)
         else:
-            before_enriched = predicted_spectrogram_before_postnet
+            if self.sent_embed_postnet:
+                before_enriched = _integrate_with_sent_embed(hs=predicted_spectrogram_before_postnet,
+                                                                sent_embeddings=sentence_embedding,
+                                                                projection=self.decoder_out_sent_emb_projection)
+            else:
+                before_enriched = predicted_spectrogram_before_postnet
         predicted_spectrogram_after_postnet = self.run_post_glow(mel_out=before_enriched,
                                                                  encoded_texts=encoded_texts,
                                                                  device=device)
@@ -462,10 +483,20 @@ def _integrate_with_utt_embed(hs, utt_embeddings, projection):
     hs = projection(torch.cat([hs, embeddings_expanded], dim=-1))
     return hs
 
+def _integrate_with_sent_embed(hs, sent_embeddings, projection):
+    # concat hidden states with spk embeds and then apply projection
+    embeddings_expanded = torch.nn.functional.normalize(sent_embeddings).unsqueeze(1).expand(-1, hs.size(1), -1)
+    hs = projection(torch.cat([hs, embeddings_expanded], dim=-1))
+    return hs
+
 def _concat_sent_utt(utt_embeddings, sent_embeddings, projection):
-    utt_embeddings_norm = torch.nn.functional.normalize(utt_embeddings)
-    sent_embeddings_norm = torch.nn.functional.normalize(sent_embeddings)
-    utt_embeddings_enriched = projection(torch.cat([utt_embeddings_norm, sent_embeddings_norm], dim=1))
+    # normalize before/after?
+    #utt_embeddings = torch.nn.functional.normalize(utt_embeddings)
+    #sent_embeddings = torch.nn.functional.normalize(sent_embeddings)
+    if projection is not None:
+        utt_embeddings_enriched = projection(torch.nn.functional.normalize(torch.cat([utt_embeddings, sent_embeddings], dim=1)))
+    else:
+        utt_embeddings_enriched = torch.nn.functional.normalize(torch.cat([utt_embeddings, sent_embeddings], dim=1))
     return utt_embeddings_enriched
 
 
