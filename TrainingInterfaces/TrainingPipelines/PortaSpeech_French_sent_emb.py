@@ -30,7 +30,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "04_PortaSpeech_French_sent_emb_a01_loss"
+    name = "04_PortaSpeech_French_sent_emb_a07"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -40,6 +40,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     a06: integrate before each encoder and decoder layer and postnet
     a07: concatenate with style embedding and apply projection
     a08: concatenate with style embedding
+    a09: integrate before each encoder layer and concatenate with style embedding and apply projection
     loss: additionally use sentence style loss
     """
 

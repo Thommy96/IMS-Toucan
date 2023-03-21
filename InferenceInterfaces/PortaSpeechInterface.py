@@ -97,39 +97,40 @@ class PortaSpeechInterface(torch.nn.Module):
                     concat_sent_style=False
                     use_concat_projection=False
                     sent_embed_postnet=False
+                    sent_embed_dim = 192
                     if "a01" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
                     if "a02" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
                         sent_embed_decoder=True
                     if "a03" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
                         sent_embed_decoder=True
                         sent_embed_postnet=True
                     if "a04" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
                         sent_embed_each=True
                     if "a05" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
                         sent_embed_decoder=True
                         sent_embed_each=True
                     if "a06" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
                         sent_embed_decoder=True
                         sent_embed_each=True
                         sent_embed_postnet=True
                     if "a07" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         concat_sent_style=True
                         use_concat_projection=True
                     if "a08" in tts_model_path:
-                        sent_embed_dim=768
+                        sent_embed_dim=sent_embed_dim
                         concat_sent_style=True
                     self.phone2mel = PortaSpeech(weights=checkpoint["model"],
                                                                     lang_embs=None,

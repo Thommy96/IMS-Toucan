@@ -14,6 +14,7 @@ from Utility.storage_config import MODELS_DIR
 
 def load_net_porta(path):
     check_dict = torch.load(path, map_location=torch.device("cpu"))
+    sent_embed_dim = 192
     try:
         net = PortaSpeech()
         net.load_state_dict(check_dict["model"])  # multi speaker multi language
@@ -27,34 +28,34 @@ def load_net_porta(path):
                 net.load_state_dict(check_dict["model"]) # single speaker
             except (RuntimeError, TypeError):
                 try:
-                    net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True) #a01
+                    net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True) #a01
                     net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                 except (RuntimeError, TypeError):
                     try:
-                        net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True) #a02
+                        net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True) #a02
                         net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                     except (RuntimeError, TypeError):
                         try:
-                            net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True) #a03
+                            net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_postnet=True) #a03
                             net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                         except (RuntimeError, TypeError):
                             try:
-                                net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_each=True) #a04
+                                net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_each=True) #a04
                                 net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                             except (RuntimeError, TypeError):
                                 try:
-                                    net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True) #a05
+                                    net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True) #a05
                                     net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                                 except (RuntimeError, TypeError):
                                     try:
-                                        net = PortaSpeech(lang_embs=None, sent_embed_dim=768, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True) #a06
+                                        net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, sent_embed_encoder=True, sent_embed_decoder=True, sent_embed_each=True, sent_embed_postnet=True) #a06
                                         net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                                     except (RuntimeError, TypeError):
                                         try:
-                                            net = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True, use_concat_projection=True) #a07
+                                            net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, concat_sent_style=True, use_concat_projection=True) #a07
                                             net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
                                         except (RuntimeError, TypeError):
-                                            net = PortaSpeech(lang_embs=None, sent_embed_dim=768, concat_sent_style=True) #a08
+                                            net = PortaSpeech(lang_embs=None, sent_embed_dim=sent_embed_dim, concat_sent_style=True) #a08
                                             net.load_state_dict(check_dict["model"]) # multi speaker single language + sentence embedding
     return net, check_dict["default_emb"], check_dict["default_sent_emb"]
 
@@ -157,7 +158,7 @@ def make_best_in_all():
                 averaged_model, _ = average_checkpoints(checkpoint_paths, load_func=load_net_bigvgan)
                 save_model_for_use(model=averaged_model, name=os.path.join(MODELS_DIR, model_dir, "best.pt"), dict_name="generator")
 
-            elif "03_PortaSpeech_NEB" in model_dir:
+            elif model_dir == "04_PortaSpeech_French_sent_emb_a07":
                 checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=os.path.join(MODELS_DIR, model_dir),
                                                                   n=1)
                 if checkpoint_paths is None:
