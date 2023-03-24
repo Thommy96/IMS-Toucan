@@ -88,5 +88,11 @@ if __name__ == '__main__':
     exec_device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"running on {exec_device}")
 
-    phonetically_interesting_sentences_seen(version="002_AD_baseline_slowed_hifi", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)
-    phonetically_interesting_sentences_unseen(version="002_AD_baseline_slowed_hifi", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+    #phonetically_interesting_sentences_seen(version="002_AD_baseline_slowed_hifi", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+    #phonetically_interesting_sentences_unseen(version="002_AD_baseline_slowed_hifi", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+
+    phonetically_interesting_sentences_seen(version="01_ToucanTTS_AD_orig_mod", model_id="AD_test_mod", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+    phonetically_interesting_sentences_unseen(version="01_ToucanTTS_AD_orig_mod", model_id="AD_test_mod", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+
+    phonetically_interesting_sentences_seen(version="01_ToucanTTS_AD_sent_embs", model_id="AD_test_sent_embs_dim", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_embs=True)
+    phonetically_interesting_sentences_unseen(version="01_ToucanTTS_AD_sent_embs", model_id="AD_test_sent_embs_dim", exec_device=exec_device, vocoder_model_path=None, biggan=False, sent_embs=True)
