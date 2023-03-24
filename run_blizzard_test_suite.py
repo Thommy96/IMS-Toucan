@@ -31,16 +31,7 @@ def le_corbeau_et_le_renard(version, model_id="Meta", exec_device="cpu", speaker
         tts.read_to_file(text_list=[sentence], file_location=f"audios/{version}/Le_corbeau_et_le_renard_{i}.wav")
 
 
-def phonetically_interesting_sentences_seen(version,
-                                            model_id="Meta",
-                                            exec_device="cpu",
-                                            speaker_reference=None,
-                                            vocoder_model_path=None,
-                                            biggan=False,
-                                            duration_scaling_factor=1.0,
-                                            pitch_variance_scale=1.0,
-                                            energy_variance_scale=1.0,
-                                            sent_embs=False):
+def phonetically_interesting_sentences_seen(version, model_id="Meta", exec_device="cpu", speaker_reference=None, vocoder_model_path=None, biggan=False, sent_embs=False):
     os.makedirs("audios", exist_ok=True)
     os.makedirs(f"audios/{version}", exist_ok=True)
     tts = ToucanTTSInterface(device=exec_device, tts_model_path=model_id, vocoder_model_path=vocoder_model_path, faster_vocoder=not biggan)
@@ -61,23 +52,10 @@ def phonetically_interesting_sentences_seen(version,
                                   ]):
         if sent_embs:
             tts.set_sentence_embedding(sentence, sentence_embedding_extractor)
-        tts.read_to_file(text_list=[sentence], file_location=f"audios/{version}/seen_sentences_{i}.wav",
-                         duration_scaling_factor=duration_scaling_factor,
-                         pitch_variance_scale=pitch_variance_scale,
-                         energy_variance_scale=energy_variance_scale,
-                         )
+        tts.read_to_file(text_list=[sentence], file_location=f"audios/{version}/seen_sentences_{i}.wav")
 
 
-def phonetically_interesting_sentences_unseen(version,
-                                              model_id="Meta",
-                                              exec_device="cpu",
-                                              speaker_reference=None,
-                                              vocoder_model_path=None,
-                                              biggan=False,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              sent_embs=False):
+def phonetically_interesting_sentences_unseen(version, model_id="Meta", exec_device="cpu", speaker_reference=None, vocoder_model_path=None, biggan=False, sent_embs=False):
     os.makedirs("audios", exist_ok=True)
     os.makedirs(f"audios/{version}", exist_ok=True)
     tts = ToucanTTSInterface(device=exec_device, tts_model_path=model_id, vocoder_model_path=vocoder_model_path, faster_vocoder=not biggan)
@@ -87,7 +65,8 @@ def phonetically_interesting_sentences_unseen(version,
     if sent_embs:
         sentence_embedding_extractor = SentenceEmbeddingExtractor()
 
-    for i, sentence in enumerate(["Les amis ont vu un ancien ami en avril, dit-on.",
+    for i, sentence in enumerate(["C'est une phrase complexe, elle a même une pause!",
+                                  "Les amis ont vu un ancien ami en avril, dit-on.",
                                   "Des amis ont vu en avril un vieil ami qui était très aimable, dit-on.",
                                   "C'est une maison où l'on peut aller quand il pleut.",
                                   "Après un tour de présentation, ils sont allés",
@@ -109,87 +88,5 @@ if __name__ == '__main__':
     exec_device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"running on {exec_device}")
 
-    # Key:
-    # [avocodo0/biggan1] _ [pretraining0/scratch1] _ [prosody unmodded0/prosody modded1] _ [with sent emb0/without1] _ [with discriminator0/without1] _ [neb/ad]
-
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_ad_speakeremb_1",
-                                              model_id="AD_f",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/DIVERS_BOOK_AD_01_0001_0.wav"
-                                              )
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_ad_speakeremb_2",
-                                              model_id="AD_f",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/DIVERS_PARL_AD_01_0002_82.wav"
-                                              )
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_ad_speakeremb_3",
-                                              model_id="AD_f",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/DIVERS_BOOK_AD_04_0002_82.wav"
-                                              )
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_ad_speakeremb_4",
-                                              model_id="AD_f",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/DIVERS_BOOK_AD_04_0001_143.wav"
-                                              )
-
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_neb_speakeremb_1",
-                                              model_id="NEB",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/ES_LMP_NEB_02_0002_117.wav"
-                                              )
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_neb_speakeremb_2",
-                                              model_id="NEB",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/EC_LFDP_NEB_07_0010_34.wav"
-                                              )
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_neb_speakeremb_3",
-                                              model_id="NEB",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/PF_VAMP_NEB_01_0020_74.wav"
-                                              )
-    phonetically_interesting_sentences_unseen(version="1_0_0_1_1_neb_speakeremb_4",
-                                              model_id="NEB",
-                                              exec_device=exec_device,
-                                              vocoder_model_path=None,
-                                              biggan=True,
-                                              duration_scaling_factor=1.0,
-                                              pitch_variance_scale=1.0,
-                                              energy_variance_scale=1.0,
-                                              speaker_reference="audios/blizzard_references/ES_LMP_NEB_02_0007_32.wav"
-                                              )
+    phonetically_interesting_sentences_seen(version="002_AD_baseline_slowed_hifi", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)
+    phonetically_interesting_sentences_unseen(version="002_AD_baseline_slowed_hifi", model_id="AD", exec_device=exec_device, vocoder_model_path=None, biggan=False)

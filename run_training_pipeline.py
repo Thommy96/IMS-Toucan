@@ -29,6 +29,7 @@ pipeline_dict = {
     "neb"      : toucanneb,
     "ad"       : toucanad,
     "ad_sent"  : ad_sent_embs,
+    "french"   : french,
     "meta"     : meta,
     # training vocoders (not recommended, best to use provided checkpoint)
     "avocodo"   : hifi_codo,
