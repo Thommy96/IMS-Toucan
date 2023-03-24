@@ -12,8 +12,9 @@ split/
 singing/
 toucan_conda_venv/
 venv/
+wandb/
+testing*
 vis/
-
 
 *_graph
 app.py
