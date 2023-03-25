@@ -1,3 +1,5 @@
+import os
+
 import torch
 from sentence_transformers import SentenceTransformer
 
@@ -7,6 +9,7 @@ class STSentenceEmbeddingExtractor(SentenceEmbeddingExtractor):
     def __init__(self, model:str='para', cache_dir:str=""):
         super().__init__()
         assert model in ['para', 'para_mini', 'distil', 'bloom', 'camembert']
+        os.environ["TOKENIZERS_PARALLELISM"] = 'False'
         if cache_dir:
             self.cache_dir = cache_dir
         if model == 'para_mini':
