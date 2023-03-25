@@ -170,7 +170,7 @@ class FastSpeechDataset(Dataset):
                 print("No datapoints were prepared! Exiting...")
                 sys.exit()
 
-        elif self.extract_sent_embs:
+        if self.extract_sent_embs:
             if not os.path.exists(os.path.join(cache_dir, f"fast_train_cache_{sentence_embedding_extractor_name}.pt")):
                 print(f'Building new cache with added sentence embeddings using {sentence_embedding_extractor_name}')
                 # load datapoints without sentence embeddings
