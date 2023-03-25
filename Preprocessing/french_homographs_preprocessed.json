@@ -479,13 +479,7 @@
   ],
   "gaucho": [
     {
-      "pronunciation": [
-        [
-          "ɡa.o.tʃo",
-          "ɡaw.tʃo"
-        ],
-        "ɡo.ʃo"
-      ],
+      "pronunciation": "ɡo.ʃo",
       "pos": "nom",
       "meta": [
         "fr-rég",
@@ -10016,8 +10010,7 @@
         "sp=1",
         "m",
         "sp"
-      ],
-      "pos_details": "NMP"
+      ]
     },
     {
       "pronunciation": "fils",
@@ -10040,8 +10033,7 @@
         "fil",
         "s=fil",
         "m"
-      ],
-      "pos_details": "NMP"
+      ]
     }
   ],
   "filler": [
@@ -11647,7 +11639,8 @@
         "fr-rég",
         "mɛ̃",
         "f"
-      ]
+      ],
+      "pos_details": "NFS"
     },
     {
       "pronunciation": [
@@ -11660,7 +11653,8 @@
         "mɛjn",
         "pron2=mɛn",
         "m"
-      ]
+      ],
+      "pos_details": "NMS"
     }
   ],
   "machiste": [
@@ -11672,7 +11666,8 @@
         "mf=oui",
         "ma.tʃist",
         "mf"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "ma.kist",
@@ -11682,7 +11677,8 @@
         "mf=oui",
         "ma.kist",
         "mf"
-      ]
+      ],
+      "default": "False"
     },
     {
       "pronunciation": "ma.kist",
@@ -11756,7 +11752,8 @@
       "pos": "nom",
       "meta": [
         "m"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "maʁk",
@@ -11765,7 +11762,8 @@
         "fr-rég",
         "maʁk",
         "m"
-      ]
+      ],
+      "default": "False"
     }
   ],
   "mater": [
@@ -11820,7 +11818,8 @@
         "fr-rég",
         "ma.tʃism",
         "m"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "ma.kism",
@@ -11829,15 +11828,13 @@
         "fr-rég",
         "ma.kism",
         "m"
-      ]
+      ],
+      "default": "False"
     }
   ],
   "master": [
     {
-      "pronunciation": [
-        "mas.tɛʁ",
-        "mas.tœʁ"
-      ],
+      "pronunciation": "mas.tœʁ",
       "pos": "nom",
       "meta": [
         "fr-rég",
@@ -11959,7 +11956,8 @@
         "m",
         "anglicisme",
         "fr"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "dʁi.vœʁ",
@@ -11970,7 +11968,8 @@
         "m",
         "anglicisme",
         "fr"
-      ]
+      ],
+      "default": "False"
     },
     {
       "pronunciation": "dʁi.ve",
@@ -11981,7 +11980,8 @@
         "conj",
         "grp=1",
         "fr"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "dʁaj.ve",
@@ -11994,7 +11994,8 @@
         "fr",
         "anglicisme",
         "fr"
-      ]
+      ],
+      "default": "False"
     },
     {
       "pronunciation": "dʁi.ve",
@@ -12007,7 +12008,8 @@
         "fr",
         "anglicisme",
         "fr"
-      ]
+      ],
+      "default": "False"
     }
   ],
   "draye": [
@@ -12581,7 +12583,8 @@
         "sp=1",
         "m",
         "sp"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "ʃa.o",
@@ -12591,7 +12594,8 @@
         "ʃa.o",
         "s=chao",
         "m"
-      ]
+      ],
+      "default": "False"
     }
   ],
   "chai": [
@@ -12602,7 +12606,8 @@
         "fr-rég",
         "ʃɛ",
         "m"
-      ]
+      ],
+      "default": "True"
     },
     {
       "pronunciation": "tʃaj",
@@ -12611,7 +12616,8 @@
         "fr-rég",
         "tʃaj",
         "m"
-      ]
+      ],
+      "default": "False"
     }
   ],
   "chatter": [

@@ -25,11 +25,7 @@ from run_weight_averaging import save_model_for_use
 
 
 def collate_and_pad(batch):
-    # text, text_len, speech, speech_len, durations, energy, pitch, utterance condition, language_id, sentence embedding
-    try:
-        sentence_embeddings = torch.stack([datapoint[9] for datapoint in batch])
-    except TypeError:
-        sentence_embeddings = None
+    # text, text_len, speech, speech_len, durations, energy, pitch, utterance condition, language_id
     return (pad_sequence([datapoint[0] for datapoint in batch], batch_first=True),
             torch.stack([datapoint[1] for datapoint in batch]).squeeze(1),
             pad_sequence([datapoint[2] for datapoint in batch], batch_first=True),
@@ -38,8 +34,7 @@ def collate_and_pad(batch):
             pad_sequence([datapoint[5] for datapoint in batch], batch_first=True),
             pad_sequence([datapoint[6] for datapoint in batch], batch_first=True),
             None,
-            torch.stack([datapoint[8] for datapoint in batch]),
-            sentence_embeddings)
+            torch.stack([datapoint[8] for datapoint in batch]))
 
 
 def train_loop(net,
@@ -63,8 +58,7 @@ def train_loop(net,
     see train loop arbiter for explanations of the arguments
     """
     net = net.to(device)
-    if use_discriminator:
-        discriminator = SpectrogramDiscriminator().to(device)
+    discriminator = SpectrogramDiscriminator().to(device)
 
     style_embedding_function = StyleEmbedding().to(device)
     check_dict = torch.load(path_to_embed_model, map_location=device)
@@ -83,10 +77,7 @@ def train_loop(net,
                               collate_fn=collate_and_pad,
                               persistent_workers=True)
     step_counter = 0
-    if use_discriminator:
-        optimizer = torch.optim.Adam(list(net.parameters()) + list(discriminator.parameters()), lr=lr)
-    else:
-        optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(list(net.parameters()) + list(discriminator.parameters()), lr=lr)
     scheduler = WarmupScheduler(optimizer, peak_lr=lr, warmup_steps=warmup_steps, max_steps=steps)
     grad_scaler = GradScaler()
     epoch = 0
@@ -127,22 +118,14 @@ def train_loop(net,
                     gold_pitch=batch[6].to(device),  # mind the switched order
                     gold_energy=batch[5].to(device),  # mind the switched order
                     utterance_embedding=style_embedding,
-                    sentence_embedding=batch[9].to(device) if batch[9] is not None else None,
                     lang_ids=batch[8].to(device),
                     return_mels=True,
                     run_glow=step_counter > postnet_start_steps or fine_tune)
 
-                if use_discriminator:
-                    discriminator_loss, generator_loss = calc_gan_outputs(real_spectrograms=batch[2].to(device),
+                discriminator_loss, generator_loss = calc_gan_outputs(real_spectrograms=batch[2].to(device),
                                                                       fake_spectrograms=generated_spectrograms,
                                                                       spectrogram_lengths=batch[3].to(device),
                                                                       discriminator=discriminator)
-                    if not torch.isnan(discriminator_loss):
-                        train_loss = train_loss + discriminator_loss
-                    if not torch.isnan(generator_loss):
-                        train_loss = train_loss + generator_loss
-                    discriminator_losses_total.append(discriminator_loss.item())
-                    generator_losses_total.append(generator_loss.item())
 
                 if not torch.isnan(l1_loss):
                     train_loss = train_loss + l1_loss
@@ -156,12 +139,17 @@ def train_loop(net,
                     if step_counter > postnet_start_steps and not torch.isnan(glow_loss):
                         train_loss = train_loss + glow_loss
                         glow_losses_total.append(glow_loss.item())
-
+                if not torch.isnan(discriminator_loss):
+                    train_loss = train_loss + discriminator_loss
+                if not torch.isnan(generator_loss):
+                    train_loss = train_loss + generator_loss
 
             l1_losses_total.append(l1_loss.item())
             duration_losses_total.append(duration_loss.item())
             pitch_losses_total.append(pitch_loss.item())
             energy_losses_total.append(energy_loss.item())
+            discriminator_losses_total.append(discriminator_loss.item())
+            generator_losses_total.append(generator_loss.item())
 
             optimizer.zero_grad()
             grad_scaler.scale(train_loss).backward()
@@ -178,15 +166,13 @@ def train_loop(net,
         default_embedding = style_embedding_function(
             batch_of_spectrograms=train_dataset[0][2].unsqueeze(0).to(device),
             batch_of_spectrogram_lengths=train_dataset[0][3].unsqueeze(0).to(device)).squeeze()
-        default_sentence_embedding = train_dataset[0][9]
         torch.save({
-            "model"           : net.state_dict(),
-            "optimizer"       : optimizer.state_dict(),
-            "step_counter"    : step_counter,
-            "scaler"          : grad_scaler.state_dict(),
-            "scheduler"       : scheduler.state_dict(),
-            "default_emb"     : default_embedding,
-            "default_sent_emb": default_sentence_embedding,
+            "model"       : net.state_dict(),
+            "optimizer"   : optimizer.state_dict(),
+            "step_counter": step_counter,
+            "scaler"      : grad_scaler.state_dict(),
+            "scheduler"   : scheduler.state_dict(),
+            "default_emb" : default_embedding,
         }, os.path.join(save_directory, "checkpoint_{}.pt".format(step_counter)))
         delete_old_checkpoints(save_directory, keep=5)
 
@@ -199,14 +185,11 @@ def train_loop(net,
                 "duration_loss" : round(sum(duration_losses_total) / len(duration_losses_total), 5),
                 "pitch_loss"    : round(sum(pitch_losses_total) / len(pitch_losses_total), 5),
                 "energy_loss"   : round(sum(energy_losses_total) / len(energy_losses_total), 5),
+                "critic_loss"   : round(sum(discriminator_losses_total) / len(discriminator_losses_total), 5),
+                "generator_loss": round(sum(generator_losses_total) / len(generator_losses_total), 5),
                 "glow_loss"     : round(sum(glow_losses_total) / len(glow_losses_total), 5) if len(glow_losses_total) != 0 else None,
                 "Steps"         : step_counter,
             })
-            if use_discriminator:
-                wandb.log({
-                    "critic_loss"   : round(sum(discriminator_losses_total) / len(discriminator_losses_total), 5),
-                    "generator_loss": round(sum(generator_losses_total) / len(generator_losses_total), 5),
-                })
 
         try:
             path_to_most_recent_plot_before, \
@@ -216,7 +199,6 @@ def train_loop(net,
                                                                           step=step_counter,
                                                                           lang=lang,
                                                                           default_emb=default_embedding,
-                                                                          default_sent_emb=default_sentence_embedding,
                                                                           run_postflow=step_counter - 5 > postnet_start_steps)
             if use_wandb:
                 wandb.log({
@@ -236,8 +218,8 @@ def train_loop(net,
         if step_counter > 2 * postnet_start_steps:
             # Run manual SWA (torch builtin doesn't work unfortunately due to the use of weight norm in the postflow)
             checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=save_directory, n=3)
-            averaged_model, default_embed, default_sent_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
-            save_model_for_use(model=averaged_model, default_embed=default_embed, default_sent_embed=default_sent_embed, name=os.path.join(save_directory, "best.pt"))
+            averaged_model, default_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
+            save_model_for_use(model=averaged_model, default_embed=default_embed, name=os.path.join(save_directory, "best.pt"))
             check_dict = torch.load(os.path.join(save_directory, "best.pt"), map_location=device)
             net.load_state_dict(check_dict["model"])
 
@@ -280,3 +262,11 @@ def get_random_window(generated_sequences, real_sequences, lengths):
         generated_windows.append(fake_spec_unpadded[start:start + window_size].unsqueeze(0))
         real_windows.append(real_spec_unpadded[start:start + window_size].unsqueeze(0))
     return torch.cat(generated_windows, dim=0), torch.cat(real_windows, dim=0)
+
+
+if __name__ == '__main__':
+    dummy_speech_batch = torch.randn([2, 30, 80])  # [Batch, Sequence Length, Spectrogram Buckets]
+    dummy_speech_lens = torch.LongTensor([10, 30])
+    fake_window, real_window = get_random_window(dummy_speech_batch, dummy_speech_batch, dummy_speech_lens)
+    print(real_window.shape),
+    print(fake_window.shape)
