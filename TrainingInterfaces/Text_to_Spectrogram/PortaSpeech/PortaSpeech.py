@@ -127,7 +127,8 @@ class PortaSpeech(torch.nn.Module, ABC):
                                                             torch.nn.ReLU(),
                                                             Linear(sent_embed_dim // 2, sent_embed_dim // 4),
                                                             torch.nn.ReLU(),
-                                                            Linear(sent_embed_dim // 4, sent_embed_dim_adapted))
+                                                            Linear(sent_embed_dim // 4, sent_embed_dim_adapted),
+                                                            LayerNorm(sent_embed_dim_adapted))
             if self.concat_sent_style:
                 if self.use_concat_projection:
                     self.style_embedding_projection = Sequential(Linear(sent_embed_dim_adapted + utt_embed_dim, utt_embed_dim),
@@ -372,6 +373,7 @@ class PortaSpeech(torch.nn.Module, ABC):
             utterance_embedding = None
 
         if self.prompt_model:
+            sentence_embedding = torch.nn.functional.normalize(sentence_embedding)
             # forward sentence embedding adaptation
             sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
         else:
@@ -636,9 +638,7 @@ def _integrate_with_sent_embed(hs, sent_embeddings, projection):
     return hs
 
 def _concat_sent_utt(utt_embeddings, sent_embeddings, projection):
-    # normalize before/after?
-    #utt_embeddings = torch.nn.functional.normalize(utt_embeddings)
-    #sent_embeddings = torch.nn.functional.normalize(sent_embeddings)
+    utt_embeddings = torch.nn.functional.normalize(utt_embeddings)
     if projection is not None:
         utt_embeddings_enriched = projection(torch.nn.functional.normalize(torch.cat([utt_embeddings, sent_embeddings], dim=1)))
     else:
