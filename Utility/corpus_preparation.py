@@ -22,9 +22,7 @@ def prepare_fastspeech_corpus(transcript_dict,
                               fine_tune_aligner=True,
                               use_reconstruction=True,
                               phone_input=False,
-                              save_imgs=False,
-                              sentence_embedding_extractor=None,
-                              sentence_embedding_extractor_name='sent_embs'):
+                              save_imgs=False):
     """
     create an aligner dataset,
     fine-tune an aligner,
@@ -72,6 +70,4 @@ def prepare_fastspeech_corpus(transcript_dict,
                              device=torch.device("cuda"),
                              lang=lang,
                              ctc_selection=ctc_selection,
-                             save_imgs=save_imgs,
-                             sentence_embedding_extractor=sentence_embedding_extractor,
-                             sentence_embedding_extractor_name=sentence_embedding_extractor_name)
+                             save_imgs=save_imgs)
