@@ -168,6 +168,11 @@ def train_loop(net,
                         batch_of_spectrograms=batch[2].to(device),
                         batch_of_spectrogram_lengths=batch[3].to(device),
                         return_all_outs=True)
+                    
+                    if use_sent_emb:
+                        sentence_embedding = sentence_embedding_extractor.encode(sentences=batch[9]).to(device)
+                    else:
+                        sentence_embedding = None
 
                     l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, output_spectrograms, sent_style_loss = net(
                         text_tensors=batch[0].to(device),
@@ -180,7 +185,7 @@ def train_loop(net,
                         gold_energy=batch[5].to(device),
                         # mind the switched order
                         utterance_embedding=style_embedding_of_gold.detach(),
-                        sentence_embedding=sentence_embedding.to(device),
+                        sentence_embedding=sentence_embedding,
                         lang_ids=batch[8].to(device),
                         return_mels=True,
                         run_glow=step_counter > postnet_start_steps or fine_tune)
