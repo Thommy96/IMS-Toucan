@@ -14,6 +14,7 @@ import torch.multiprocessing
 import Layers.ConditionalLayerNorm
 from Preprocessing.TextFrontend import ArticulatoryCombinedTextFrontend
 from Preprocessing.TextFrontend import get_language_id
+from Preprocessing.sentence_embeddings.LEALLASentenceEmbeddingExtractor import LEALLASentenceEmbeddingExtractor as SentenceEmbeddingExtractor
 
 
 def make_estimated_durations_usable_for_inference(xs, offset=1.0):
@@ -51,6 +52,9 @@ def plot_progress_spec(net,
     sentence = tf.get_example_sentence(lang=lang)
     if sentence is None:
         return None
+    if default_sent_emb is not None:
+        sentence_embedding_extractor = SentenceEmbeddingExtractor()
+        default_sent_emb = sentence_embedding_extractor.encode([sentence]).squeeze()
     phoneme_vector = tf.string_to_tensor(sentence).squeeze(0).to(device)
     if run_postflow:
         spec, durations, pitch, energy = net.inference(text=phoneme_vector,

@@ -11,7 +11,6 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 
-from Preprocessing.sentence_embeddings.LEALLASentenceEmbeddingExtractor import LEALLASentenceEmbeddingExtractor as SentenceEmbeddingExtractor
 from TrainingInterfaces.Spectrogram_to_Embedding.StyleEmbedding import StyleEmbedding
 from Utility.WarmupScheduler import ToucanWarmupScheduler as WarmupScheduler
 from Utility.utils import delete_old_checkpoints
@@ -48,7 +47,8 @@ def train_loop(net,
                phase_1_steps,
                phase_2_steps,
                use_wandb,
-               postnet_start_steps
+               postnet_start_steps,
+               use_sent_emb=False
                ):
     """
     Args:
@@ -76,7 +76,9 @@ def train_loop(net,
     style_embedding_function.eval()
     style_embedding_function.requires_grad_(False)
 
-    sentence_embedding_extractor = SentenceEmbeddingExtractor()
+    if use_sent_emb:
+        from Preprocessing.sentence_embeddings.LEALLASentenceEmbeddingExtractor import LEALLASentenceEmbeddingExtractor as SentenceEmbeddingExtractor
+        sentence_embedding_extractor = SentenceEmbeddingExtractor()
 
     torch.multiprocessing.set_sharing_strategy('file_system')
     train_loader = DataLoader(batch_size=batch_size,
@@ -127,7 +129,10 @@ def train_loop(net,
                     style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
                                                             batch_of_spectrogram_lengths=batch[3].to(device))
                     
-                    sentence_embedding = sentence_embedding_extractor.encode(sentences=batch[9])
+                    if use_sent_emb:
+                        sentence_embedding = sentence_embedding_extractor.encode(sentences=batch[9]).to(device)
+                    else:
+                        sentence_embedding = None
                     
                     l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, kl_loss, sent_style_loss = net(
                         text_tensors=batch[0].to(device),
@@ -140,7 +145,7 @@ def train_loop(net,
                         gold_energy=batch[5].to(device),
                         # mind the switched order
                         utterance_embedding=style_embedding,
-                        sentence_embedding=sentence_embedding.to(device),
+                        sentence_embedding=sentence_embedding,
                         lang_ids=batch[8].to(device),
                         return_mels=False,
                         run_glow=step_counter > postnet_start_steps or fine_tune)
@@ -234,7 +239,10 @@ def train_loop(net,
             batch_of_spectrograms=train_dataset[0][2].unsqueeze(0).to(device),
             batch_of_spectrogram_lengths=train_dataset[0][3].unsqueeze(0).to(device)
             ).squeeze()
-        default_sentence_embedding = train_dataset[0][9]
+        if use_sent_emb:
+            default_sentence_embedding = sentence_embedding_extractor.encode([train_dataset[0][9]])
+        else:
+            default_sentence_embedding = None
         torch.save({
             "model"       : net.state_dict(),
             "optimizer"   : optimizer.state_dict(),
