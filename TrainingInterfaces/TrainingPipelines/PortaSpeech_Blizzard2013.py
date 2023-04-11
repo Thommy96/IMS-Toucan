@@ -10,6 +10,8 @@ from Utility.path_to_transcript_dicts import *
 from Utility.storage_config import MODELS_DIR
 from Utility.storage_config import PREPROCESSING_DIR
 
+import sys
+
 
 def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb_resume_id):
     if gpu_id == "cpu":
@@ -27,7 +29,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "04_PortaSpeech_Blizzard2013"
+    name = "05_PortaSpeech_Blizzard2013"
 
     if model_dir is not None:
         save_dir = model_dir
@@ -40,7 +42,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                                           lang="en",
                                           save_imgs=False)
 
-    model = PortaSpeech(lang_embs=None)
+    model = PortaSpeech()
     if use_wandb:
         wandb.init(
             name=f"{name}_{time.strftime('%Y%m%d-%H%M%S')}" if wandb_resume_id is None else None,

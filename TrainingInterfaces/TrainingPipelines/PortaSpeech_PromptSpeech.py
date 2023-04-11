@@ -29,7 +29,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "04_PortaSpeech_PromptSpeech"
+    name = "05_PortaSpeech_PromptSpeech"
 
     if model_dir is not None:
         save_dir = model_dir
@@ -41,8 +41,6 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                                           corpus_dir=os.path.join(PREPROCESSING_DIR, "promptspeech"),
                                           lang="en",
                                           save_imgs=False)
-    
-    sys.exit()
 
     model = PortaSpeech()
     if use_wandb:

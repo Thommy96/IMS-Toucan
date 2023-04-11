@@ -1,3 +1,7 @@
+"""
+This is basically an integration test
+"""
+
 import time
 
 import torch
@@ -30,7 +34,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "05_PortaSpeech_Blizzard2013_sent_emb_a07"
+    name = "05_PortaSpeech_IntegrationTest_a07"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -49,10 +53,10 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
         save_dir = os.path.join(MODELS_DIR, name)
     os.makedirs(save_dir, exist_ok=True)
 
-    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_blizzard_2013(),
-                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "blizzard2013"),
+    train_set = prepare_fastspeech_corpus(transcript_dict=build_path_to_transcript_dict_integration_test(),
+                                          corpus_dir=os.path.join(PREPROCESSING_DIR, "IntegrationTest"),
                                           lang="en",
-                                          save_imgs=False)
+                                          save_imgs=True)
 
     sent_embed_dim = 192
 
@@ -107,17 +111,17 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                datasets=[train_set],
                device=device,
                save_directory=save_dir,
-               batch_size=6,
+               batch_size=8,
                eval_lang="en",
+               warmup_steps=500,
                path_to_checkpoint=resume_checkpoint,
                path_to_embed_model=os.path.join(MODELS_DIR, "Embedding", "embedding_function.pt"),
                fine_tune=finetune,
                resume=resume,
+               phase_1_steps=1000,
+               phase_2_steps=500,
+               postnet_start_steps=600,
                use_wandb=use_wandb,
-               warmup_steps=8000,
-               postnet_start_steps=9000,
-               phase_1_steps=80000,
-               phase_2_steps=0,
                use_sent_emb=True)
     if use_wandb:
         wandb.finish()
