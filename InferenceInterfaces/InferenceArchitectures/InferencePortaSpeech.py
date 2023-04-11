@@ -20,7 +20,7 @@ class PortaSpeech(torch.nn.Module):
                  # network structure related
                  input_feature_dimensions=62,
                  output_spectrogram_channels=80,
-                 attention_dimension=192,
+                 attention_dimension=384,
                  attention_heads=4,
                  positionwise_conv_kernel_size=1,
                  use_scaled_positional_encoding=True,
@@ -94,17 +94,19 @@ class PortaSpeech(torch.nn.Module):
         self.sent_embed_postnet = sent_embed_postnet and self.prompt_model
 
         if self.prompt_model:
-            sent_embed_dim_adapted = utt_embed_dim if utt_embed_dim is not None else 64
-            self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim // 2),
-                                                            torch.nn.ReLU(),
-                                                            Linear(sent_embed_dim // 2, sent_embed_dim // 4),
-                                                            torch.nn.ReLU(),
-                                                            Linear(sent_embed_dim // 4, sent_embed_dim_adapted),
-                                                            LayerNorm(sent_embed_dim_adapted))
+            #sent_embed_dim_adapted = utt_embed_dim if utt_embed_dim is not None else 64
+            sent_embed_dim_adapted = sent_embed_dim
+            self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim),
+                                                            torch.nn.LeakyReLU(),
+                                                            Linear(sent_embed_dim, sent_embed_dim),
+                                                            torch.nn.LeakyReLU(),
+                                                            Linear(sent_embed_dim, sent_embed_dim),
+                                                            LayerNorm(sent_embed_dim))
             if self.concat_sent_style:
                 if self.use_concat_projection:
-                    self.style_embedding_projection = Sequential(Linear(sent_embed_dim_adapted + utt_embed_dim, utt_embed_dim),
-                                                            LayerNorm(utt_embed_dim))
+                    self.style_embedding_projection = Sequential(Linear(utt_embed_dim +sent_embed_dim_adapted, utt_embed_dim + sent_embed_dim_adapted),
+                                                            LayerNorm(utt_embed_dim + sent_embed_dim_adapted))
+                    utt_embed_dim = utt_embed_dim + sent_embed_dim_adapted
                 else:
                     utt_embed_dim = utt_embed_dim + sent_embed_dim_adapted
         else:
