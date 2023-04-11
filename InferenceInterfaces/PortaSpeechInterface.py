@@ -98,6 +98,7 @@ class PortaSpeechInterface(torch.nn.Module):
                     use_concat_projection=False
                     sent_embed_postnet=False
                     sent_embed_dim = 192
+                    lang_embs=8000
                     if "a01" in tts_model_path:
                         sent_embed_dim=sent_embed_dim
                         sent_embed_encoder=True
@@ -133,7 +134,7 @@ class PortaSpeechInterface(torch.nn.Module):
                         sent_embed_dim=sent_embed_dim
                         concat_sent_style=True
                     self.phone2mel = PortaSpeech(weights=checkpoint["model"],
-                                                                    lang_embs=None,
+                                                                    lang_embs=lang_embs,
                                                                     sent_embed_dim=sent_embed_dim,
                                                                     sent_embed_encoder=sent_embed_encoder,
                                                                     sent_embed_decoder=sent_embed_decoder,
