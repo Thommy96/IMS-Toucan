@@ -4,6 +4,8 @@ from torch.nn import Sequential
 from torch.nn import Tanh
 from torch.nn import LeakyReLU
 from torch.nn import LayerNorm
+import random
+import numpy as np
 
 from Layers.Conformer import Conformer
 from Layers.DurationPredictor import DurationPredictor
@@ -16,6 +18,7 @@ from TrainingInterfaces.Text_to_Spectrogram.ToucanTTS.ToucanTTSLoss import Touca
 from Utility.utils import initialize
 from Utility.utils import make_non_pad_mask
 from Utility.utils import make_pad_mask
+from Utility.diverse_losses import TripletLoss
 
 
 class ToucanTTS(torch.nn.Module):
@@ -107,7 +110,8 @@ class ToucanTTS(torch.nn.Module):
                  sent_embed_postnet=False,
                  concat_sent_style=False,
                  use_concat_projection=False,
-                 use_sent_style_loss=False):
+                 use_sent_style_loss=False,
+                 use_cross_modal_loss=False):
         super().__init__()
 
         self.input_feature_dimensions = input_feature_dimensions
@@ -121,11 +125,12 @@ class ToucanTTS(torch.nn.Module):
         self.concat_sent_style = concat_sent_style and self.multispeaker_model and self.use_sent_embed
         self.use_concat_projection = use_concat_projection and self.concat_sent_style
         self.use_sent_style_loss = use_sent_style_loss and self.multispeaker_model and self.use_sent_embed
+        self.use_cross_modal_loss = use_cross_modal_loss
         self.sent_embed_postnet = sent_embed_postnet and self.use_sent_embed
 
         if self.use_sent_embed:
             if self.sent_embed_adaptation:
-                if self.use_sent_style_loss:
+                if self.use_sent_style_loss or self.use_cross_modal_loss:
                     self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim // 2),
                                                                     Tanh(),
                                                                     Linear(sent_embed_dim // 2, sent_embed_dim // 4),
@@ -259,6 +264,9 @@ class ToucanTTS(torch.nn.Module):
         if self.use_sent_style_loss:
             print("Using sentence style loss")
             self.mse_criterion = torch.nn.MSELoss(reduction='mean')
+        if self.use_cross_modal_loss:
+            print("Using contrastive loss")
+            self.contrastive_loss = TripletLoss(margin=1.0)
 
     def forward(self,
                 text_tensors,
@@ -270,6 +278,7 @@ class ToucanTTS(torch.nn.Module):
                 gold_energy,
                 utterance_embedding,
                 sentence_embedding=None,
+                style_embedding_function=None,
                 return_mels=False,
                 lang_ids=None,
                 run_glow=True
@@ -294,7 +303,8 @@ class ToucanTTS(torch.nn.Module):
         predicted_pitch, \
         predicted_energy, \
         glow_loss, \
-        sent_style_loss = self._forward(text_tensors=text_tensors,
+        sent_style_loss, \
+        modal_loss = self._forward(text_tensors=text_tensors,
                                   text_lengths=text_lengths,
                                   gold_speech=gold_speech,
                                   speech_lengths=speech_lengths,
@@ -303,6 +313,7 @@ class ToucanTTS(torch.nn.Module):
                                   gold_energy=gold_energy,
                                   utterance_embedding=utterance_embedding,
                                   sentence_embedding=sentence_embedding,
+                                  style_embedding_function=style_embedding_function,
                                   is_inference=False,
                                   lang_ids=lang_ids,
                                   run_glow=run_glow)
@@ -324,8 +335,8 @@ class ToucanTTS(torch.nn.Module):
         if return_mels:
             if after_outs is None:
                 after_outs = before_outs
-            return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, after_outs,
-        return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss
+            return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, modal_loss, after_outs,
+        return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, modal_loss
 
     def _forward(self,
                  text_tensors,
@@ -338,6 +349,7 @@ class ToucanTTS(torch.nn.Module):
                  is_inference=False,
                  utterance_embedding=None,
                  sentence_embedding=None,
+                 style_embedding_function=None,
                  lang_ids=None,
                  run_glow=True):
 
@@ -361,6 +373,13 @@ class ToucanTTS(torch.nn.Module):
             if self.sent_embed_adaptation:
                 # forward sentence embedding adaptation
                 sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
+        
+        if self.use_cross_modal_loss and not is_inference:
+            style_embeddings = style_embedding_function(batch_of_spectrograms=gold_speech,
+                                                        batch_of_spectrogram_lengths=speech_lengths)
+            modal_loss = self.contrastive_loss(sentence_embedding[0].unsqueeze(0), style_embeddings[0].unsqueeze(0), style_embeddings[1].unsqueeze(0))
+        else:
+            modal_loss = None
 
         if self.concat_sent_style:
             utterance_embedding = self.utt_embed_bottleneck(utterance_embedding)
@@ -478,7 +497,8 @@ class ToucanTTS(torch.nn.Module):
                    pitch_predictions, \
                    energy_predictions, \
                    glow_loss, \
-                   sent_style_loss
+                   sent_style_loss, \
+                   modal_loss
 
     @torch.inference_mode()
     def inference(self,

@@ -8,6 +8,7 @@ import wandb
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
+import numpy as np
 
 from TrainingInterfaces.Spectrogram_to_Embedding.StyleEmbedding import StyleEmbedding
 from TrainingInterfaces.Text_to_Spectrogram.ToucanTTS.SpectrogramDiscriminator import SpectrogramDiscriminator
@@ -19,6 +20,9 @@ from run_weight_averaging import average_checkpoints
 from run_weight_averaging import get_n_recent_checkpoints_paths
 from run_weight_averaging import load_net_toucan
 from run_weight_averaging import save_model_for_use
+from Utility.diverse_losses import TripletLoss
+from Preprocessing.TextFrontend import ArticulatoryCombinedTextFrontend
+from Preprocessing.TextFrontend import get_language_id
 
 
 def collate_and_pad(batch):
@@ -52,7 +56,8 @@ def train_loop(net,
                postnet_start_steps,
                use_discriminator,
                sent_embs=None,
-               replace_utt_sent_emb=False
+               replace_utt_sent_emb=False,
+               use_contrastive_loss=False
                ):
     """
     see train loop arbiter for explanations of the arguments
@@ -60,6 +65,11 @@ def train_loop(net,
     net = net.to(device)
     if use_discriminator:
         discriminator = SpectrogramDiscriminator().to(device)
+
+    if use_contrastive_loss:
+        print("Using contrastive loss")
+        contrastive_loss = TripletLoss(margin=1.0)
+        #tf = ArticulatoryCombinedTextFrontend(language=lang)
 
     style_embedding_function = StyleEmbedding().to(device)
     check_dict = torch.load(path_to_embed_model, map_location=device)
@@ -95,6 +105,7 @@ def train_loop(net,
             step_counter = check_dict["step_counter"]
     start_time = time.time()
     while True:
+        style_embedding_function.train()
         net.train()
         epoch += 1
         l1_losses_total = list()
@@ -105,6 +116,8 @@ def train_loop(net,
         generator_losses_total = list()
         discriminator_losses_total = list()
         sent_style_losses_total = list()
+        con_losses_total = list()
+        modal_losses_total = list()
 
         for batch in tqdm(train_loader):
             train_loss = 0.0
@@ -116,10 +129,23 @@ def train_loop(net,
             else:
                 sentence_embedding = None
 
+            if use_contrastive_loss:
+                # get similar sent emb datapoint
+                sim_sent = None
+                sim_id = None
+                cos_sim_max = -2
+                for i, (sent, emb) in enumerate(sent_embs.items()):
+                    if sent != sentences[0]:
+                        cos_sim = cosine_similarity(sentence_embedding[0].cpu(), emb.cpu())
+                        if cos_sim > cos_sim_max:
+                            cos_sim_max = cos_sim
+                            sim_sent = sent
+                            sim_id = i
+
             if replace_utt_sent_emb:
                 style_embedding = sentence_embedding
 
-            l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, generated_spectrograms = net(
+            l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, modal_loss, generated_spectrograms = net(
                 text_tensors=batch[0].to(device),
                 text_lengths=batch[1].to(device),
                 gold_speech=batch[2].to(device),
@@ -129,6 +155,7 @@ def train_loop(net,
                 gold_energy=batch[5].to(device),  # mind the switched order
                 utterance_embedding=style_embedding,
                 sentence_embedding=sentence_embedding,
+                style_embedding_function=style_embedding_function,
                 lang_ids=batch[8].to(device),
                 return_mels=True,
                 run_glow=step_counter > postnet_start_steps or fine_tune)
@@ -145,6 +172,25 @@ def train_loop(net,
                 discriminator_losses_total.append(discriminator_loss.item())
                 generator_losses_total.append(generator_loss.item())
 
+            if use_contrastive_loss:
+                style_embedding_from_predicted = style_embedding_function(batch_of_spectrograms=generated_spectrograms,
+                                                                          batch_of_spectrogram_lengths=batch[3].to(device))
+                style_embedding_sim = style_embedding_function(batch_of_spectrograms=train_dataset[sim_id][2].to(device),
+                                                                batch_of_spectrogram_lengths=train_dataset[sim_id][3].to(device))
+                #generated_spectrogram_sim = net.inference(text=tf.string_to_tensor(sim_sent).squeeze(0).to("cpu"),
+                #                                        utterance_embedding=style_embedding_sim.squeeze(0).to("cpu"),
+                #                                        sentence_embedding=sent_embs[sim_sent].to("cpu"),
+                #                                        lang_id=get_language_id(lang).to("cpu"),
+                #                                        run_postflow=step_counter > postnet_start_steps or fine_tune)
+                style_emb_anchor = style_embedding_from_predicted[0]
+                #style_embedding_pos = style_embedding_function(batch_of_spectrograms=generated_spectrogram_sim.to(device),
+                #                                                batch_of_spectrogram_lengths=train_dataset[sim_id][3].to(device))
+                style_embedding_pos = style_embedding_sim
+                style_embedding_neg = style_embedding_from_predicted[1]
+                con_loss = contrastive_loss(style_emb_anchor.unsqueeze(0), style_embedding_pos.unsqueeze(0), style_embedding_neg.unsqueeze(0))
+            else:
+                con_loss = None      
+
             if not torch.isnan(l1_loss):
                 train_loss = train_loss + l1_loss
             if not torch.isnan(duration_loss):
@@ -160,6 +206,14 @@ def train_loop(net,
                 if not torch.isnan(sent_style_loss):
                     train_loss = train_loss + sent_style_loss
                 sent_style_losses_total.append(sent_style_loss.item())
+            if con_loss is not None:
+                if not torch.isnan(con_loss):
+                    train_loss = train_loss + con_loss
+                con_losses_total.append(con_loss.item())
+            if modal_loss is not None:
+                if not torch.isnan(modal_loss):
+                    train_loss = train_loss + modal_loss
+                modal_losses_total.append(modal_loss.item())
 
             l1_losses_total.append(l1_loss.item())
             duration_losses_total.append(duration_loss.item())
@@ -205,6 +259,8 @@ def train_loop(net,
                 "energy_loss"  : round(sum(energy_losses_total) / len(energy_losses_total), 5),
                 "glow_loss"    : round(sum(glow_losses_total) / len(glow_losses_total), 5) if len(glow_losses_total) != 0 else None,
                 "sentence_style_loss": round(sum(sent_style_losses_total) / len(sent_style_losses_total), 5) if len(sent_style_losses_total) != 0 else None,
+                "contrastive_loss": round(sum(con_losses_total) / len(con_losses_total), 5) if len(con_losses_total) != 0 else None,
+                "modal_loss": round(sum(modal_losses_total) / len(modal_losses_total), 5) if len(modal_losses_total) != 0 else None,
             }, step=step_counter)
             if use_discriminator:
                 wandb.log({
@@ -283,3 +339,6 @@ def get_random_window(generated_sequences, real_sequences, lengths):
         generated_windows.append(fake_spec_unpadded[start:start + window_size].unsqueeze(0))
         real_windows.append(real_spec_unpadded[start:start + window_size].unsqueeze(0))
     return torch.cat(generated_windows, dim=0), torch.cat(real_windows, dim=0)
+
+def cosine_similarity(v1, v2):
+    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))

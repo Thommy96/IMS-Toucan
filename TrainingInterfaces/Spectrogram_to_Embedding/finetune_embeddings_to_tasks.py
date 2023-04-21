@@ -17,7 +17,7 @@ from Preprocessing.AudioPreprocessor import AudioPreprocessor
 from TrainingInterfaces.Spectrogram_to_Embedding.StyleEmbedding import StyleEmbedding
 from Utility.diverse_losses import BarlowTwinsLoss
 from Utility.diverse_losses import TripletLoss
-from Utility.storage_config import MODELS_DIR
+from Utility.storage_config import MODELS_DIR, PREPROCESSING_DIR
 
 
 class Dataset:
@@ -300,6 +300,41 @@ def finetune_model_speaker(gpu_id, resume_checkpoint, resume, finetune, model_di
     finetuned_model = finetune_model(speaker_data, device=device)
     torch.save({"style_emb_func": finetuned_model.state_dict()}, os.path.join(MODELS_DIR, "Embedding", "speaker_embedding_function.pt"))
 
+def finetune_promptspeech(gpu_id):
+    if gpu_id == "cpu":
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        device = torch.device("cpu")
+
+    else:
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"] = f"{gpu_id}"
+        device = torch.device("cuda")
+
+    torch.manual_seed(131714)
+    random.seed(131714)
+    torch.random.manual_seed(131714)
+    speaker_data = Dataset()
+    label_to_filelist = dict()
+
+    path_train = "/mount/resources/speech/corpora/LibriTTS/all_clean"
+    import pandas as pd
+    promptspeech_train_df = pd.read_csv('/mount/arbeitsdaten/synthesis/bottts/IMS-Toucan/Corpora/PromptSpeech_training.csv')
+    promptspeech_files = list(promptspeech_train_df['item_name'])
+    for speaker in tqdm(os.listdir(path_train)):
+        label_to_filelist[speaker] = list()
+        for chapter in os.listdir(os.path.join(path_train, speaker)):
+            for file in os.listdir(os.path.join(path_train, speaker, chapter)):
+                if file.endswith("normalized.txt"):
+                    if file.split(".")[0] in promptspeech_files:
+                        wav_file = file.split(".")[0] + ".wav"
+                        if len(label_to_filelist[speaker]) > 15:
+                            break
+                        label_to_filelist[speaker].append(os.path.join(path_train, speaker, chapter, wav_file))
+
+    speaker_data.add_dataset(label_to_filelist)
+    finetuned_model = finetune_model(speaker_data, device=device)
+    torch.save({"style_emb_func": finetuned_model.state_dict()}, os.path.join(PREPROCESSING_DIR, "promptspeech", "speaker_embedding_function_finetuned.pt"))
+
 
 def finetune_model(dataset, device, path_to_embed=os.path.join(MODELS_DIR, "Embedding", "embedding_function.pt")):
     # initialize losses
@@ -323,7 +358,7 @@ def finetune_model(dataset, device, path_to_embed=os.path.join(MODELS_DIR, "Embe
     non_con_losses = list()
 
     # train loop
-    for step in tqdm(range(10000)):
+    for step in tqdm(range(4000)):
         anchors = list()
         anchor_lens = list()
         positives = list()

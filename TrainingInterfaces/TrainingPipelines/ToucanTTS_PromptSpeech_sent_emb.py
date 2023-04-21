@@ -29,7 +29,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_03_PromptSpeech_sent_emb_a11_loss_mpnet"
+    name = "ToucanTTS_03_PromptSpeech_sent_emb_a11_con_mpnet"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -43,6 +43,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     a10: replace style embedding with sentence embedding (no style embedding, no language embedding, single speaker single language case)
     a11: a01 + a07
     loss: additionally use sentence style loss
+    con: use contrastive loss between sent emb and style emb with TripletLoss
     """
 
     if model_dir is not None:
@@ -174,7 +175,8 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                     sent_embed_postnet=sent_embed_postnet,
                     concat_sent_style=concat_sent_style,
                     use_concat_projection=use_concat_projection,
-                    use_sent_style_loss="loss" in name)
+                    use_sent_style_loss="loss" in name,
+                    use_contrastive_loss="_con" in name)
 
     if use_wandb:
         wandb.init(
@@ -189,7 +191,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                batch_size=4,
                eval_lang="en",
                path_to_checkpoint=resume_checkpoint,
-               path_to_embed_model=os.path.join(MODELS_DIR, "Embedding", "embedding_function.pt"),
+               path_to_embed_model=os.path.join(PREPROCESSING_DIR, "promptspeech", "speaker_embedding_function_finetuned.pt"),
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
