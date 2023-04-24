@@ -265,7 +265,7 @@ class ToucanTTS(torch.nn.Module):
             print("Using sentence style loss")
             self.mse_criterion = torch.nn.MSELoss(reduction='mean')
         if self.use_cross_modal_loss:
-            print("Using contrastive loss")
+            print("Using cross modal loss")
             self.contrastive_loss = TripletLoss(margin=1.0)
 
     def forward(self,
@@ -278,7 +278,6 @@ class ToucanTTS(torch.nn.Module):
                 gold_energy,
                 utterance_embedding,
                 sentence_embedding=None,
-                style_embedding_function=None,
                 return_mels=False,
                 lang_ids=None,
                 run_glow=True
@@ -313,7 +312,6 @@ class ToucanTTS(torch.nn.Module):
                                   gold_energy=gold_energy,
                                   utterance_embedding=utterance_embedding,
                                   sentence_embedding=sentence_embedding,
-                                  style_embedding_function=style_embedding_function,
                                   is_inference=False,
                                   lang_ids=lang_ids,
                                   run_glow=run_glow)
@@ -349,7 +347,6 @@ class ToucanTTS(torch.nn.Module):
                  is_inference=False,
                  utterance_embedding=None,
                  sentence_embedding=None,
-                 style_embedding_function=None,
                  lang_ids=None,
                  run_glow=True):
 
@@ -375,9 +372,7 @@ class ToucanTTS(torch.nn.Module):
                 sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
         
         if self.use_cross_modal_loss and not is_inference:
-            style_embeddings = style_embedding_function(batch_of_spectrograms=gold_speech,
-                                                        batch_of_spectrogram_lengths=speech_lengths)
-            modal_loss = self.contrastive_loss(sentence_embedding[0].unsqueeze(0), style_embeddings[0].unsqueeze(0), style_embeddings[1].unsqueeze(0))
+            modal_loss = self.contrastive_loss(sentence_embedding[0].unsqueeze(0), utterance_embedding[0].unsqueeze(0), utterance_embedding[1].unsqueeze(0))
         else:
             modal_loss = None
 

@@ -29,7 +29,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_03_PromptSpeech_sent_emb_a11_con_mpnet"
+    name = "ToucanTTS_03_PromptSpeech_sent_emb_a11_modal_mpnet"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -176,7 +176,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                     concat_sent_style=concat_sent_style,
                     use_concat_projection=use_concat_projection,
                     use_sent_style_loss="loss" in name,
-                    use_contrastive_loss="_con" in name)
+                    use_cross_modal_loss="_modal" in name)
 
     if use_wandb:
         wandb.init(
@@ -196,6 +196,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                resume=resume,
                use_wandb=use_wandb,
                sent_embs=sent_embs,
-               replace_utt_sent_emb=replace_utt_sent_emb)
+               replace_utt_sent_emb=replace_utt_sent_emb,
+               use_contrastive_loss="_con" in name)
     if use_wandb:
         wandb.finish()

@@ -105,7 +105,7 @@ def train_loop(net,
             step_counter = check_dict["step_counter"]
     start_time = time.time()
     while True:
-        style_embedding_function.train()
+        #style_embedding_function.train()
         net.train()
         epoch += 1
         l1_losses_total = list()
@@ -155,7 +155,6 @@ def train_loop(net,
                 gold_energy=batch[5].to(device),  # mind the switched order
                 utterance_embedding=style_embedding,
                 sentence_embedding=sentence_embedding,
-                style_embedding_function=style_embedding_function,
                 lang_ids=batch[8].to(device),
                 return_mels=True,
                 run_glow=step_counter > postnet_start_steps or fine_tune)
