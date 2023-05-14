@@ -118,7 +118,7 @@ def train_loop(net,
         discriminator_losses_total = list()
         sent_style_losses_total = list()
 
-        for batch in tqdm(train_loader):
+        for i, batch in enumerate(tqdm(train_loader)):
             train_loss = 0.0
             style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
                                                        batch_of_spectrogram_lengths=batch[3].to(device))
@@ -134,11 +134,11 @@ def train_loop(net,
                 style_embedding = sentence_embedding
             
             if word_embedding_extractor is not None:
-                word_embedding, sentence_lens = word_embedding_extractor.encode(sentences=batch[9])
+                word_embedding, word_embedding_lengths = word_embedding_extractor.encode(sentences=batch[9])
                 word_embedding = word_embedding.to(device)
             else:
                 word_embedding = None
-                sentence_lens = None
+                word_embedding_lengths = None
 
             l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, generated_spectrograms = net(
                 text_tensors=batch[0].to(device),
@@ -151,6 +151,7 @@ def train_loop(net,
                 utterance_embedding=style_embedding,
                 sentence_embedding=sentence_embedding,
                 word_embedding=word_embedding,
+                word_embedding_lengths=word_embedding_lengths,
                 lang_ids=batch[8].to(device),
                 return_mels=True,
                 run_glow=step_counter > postnet_start_steps or fine_tune)

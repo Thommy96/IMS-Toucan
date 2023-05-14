@@ -215,7 +215,7 @@ def plot_progress_spec_toucantts(net,
     else:
         sentence_embedding = None
     if word_embedding_extractor is not None:
-        word_embedding, _ = word_embedding_extractor.encode([sentence])
+        word_embedding, word_embedding_lengths = word_embedding_extractor.encode([sentence])
         word_embedding = word_embedding.squeeze()
     else:
         word_embedding = None
@@ -226,6 +226,7 @@ def plot_progress_spec_toucantts(net,
                                                                           utterance_embedding=default_emb,
                                                                           sentence_embedding=sentence_embedding,
                                                                           word_embedding=word_embedding,
+                                                                          word_embedding_lengths=word_embedding_lengths,
                                                                           lang_id=get_language_id(lang).to(device),
                                                                           run_postflow=run_postflow)
     else:
@@ -234,6 +235,7 @@ def plot_progress_spec_toucantts(net,
                                                                           utterance_embedding=default_emb,
                                                                           sentence_embedding=sentence_embedding,
                                                                           word_embedding=word_embedding,
+                                                                          word_embedding_lengths=word_embedding_lengths,
                                                                           lang_id=get_language_id(lang).to(device),
                                                                           run_postflow=False)
     spec = spec_before.transpose(0, 1).to("cpu").numpy()

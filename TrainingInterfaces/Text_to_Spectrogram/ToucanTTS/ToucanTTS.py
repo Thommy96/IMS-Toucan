@@ -4,6 +4,7 @@ from torch.nn import Sequential
 from torch.nn import Tanh
 from torch.nn import LeakyReLU
 from torch.nn import LayerNorm
+from torch.nn.utils.rnn import pad_sequence
 
 from Layers.Conformer import Conformer
 from Layers.DurationPredictor import DurationPredictor
@@ -154,6 +155,29 @@ class ToucanTTS(torch.nn.Module):
 
             if pre_embed:
                 input_feature_dimensions = 62 + sent_embed_dim
+        
+        if self.use_word_embed:
+            word_embedding_adaptor = Sequential(Linear(word_embed_dim, 512),
+                                                     Tanh(),
+                                                     Linear(512, attention_dimension))
+            self.word_emb_encoder = Conformer(idim=word_embed_dim,
+                                            attention_dim=attention_dimension,
+                                            attention_heads=attention_heads,
+                                            linear_units=encoder_units,
+                                            num_blocks=encoder_layers,
+                                            input_layer=word_embedding_adaptor,
+                                            dropout_rate=transformer_enc_dropout_rate,
+                                            positional_dropout_rate=transformer_enc_positional_dropout_rate,
+                                            attention_dropout_rate=transformer_enc_attn_dropout_rate,
+                                            normalize_before=encoder_normalize_before,
+                                            concat_after=encoder_concat_after,
+                                            positionwise_conv_kernel_size=positionwise_conv_kernel_size,
+                                            macaron_style=use_macaron_style_in_conformer,
+                                            use_cnn_module=use_cnn_in_conformer,
+                                            cnn_module_kernel=conformer_encoder_kernel_size,
+                                            zero_triu=False,
+                                            use_output_norm=True)
+            self.word_emb_projection = Linear(attention_dimension*2, attention_dimension)
 
         articulatory_feature_embedding = Sequential(Linear(input_feature_dimensions, 512 if pre_embed else 100), Tanh(), Linear(512 if pre_embed else 100, attention_dimension))
         self.encoder = Conformer(idim=input_feature_dimensions,
@@ -177,7 +201,7 @@ class ToucanTTS(torch.nn.Module):
                                  sent_embed_dim=sent_embed_dim if sent_embed_encoder else None,
                                  sent_embed_each=sent_embed_each,
                                  pre_embed=pre_embed,
-                                 word_embed_dim=word_embed_dim,
+                                 word_embed_dim=None,
                                  use_output_norm=True)
 
         self.duration_predictor = DurationPredictor(idim=attention_dimension, n_layers=duration_predictor_layers,
@@ -281,6 +305,7 @@ class ToucanTTS(torch.nn.Module):
                 utterance_embedding,
                 sentence_embedding=None,
                 word_embedding=None,
+                word_embedding_lengths=None,
                 return_mels=False,
                 lang_ids=None,
                 run_glow=True
@@ -315,6 +340,7 @@ class ToucanTTS(torch.nn.Module):
                                   utterance_embedding=utterance_embedding,
                                   sentence_embedding=sentence_embedding,
                                   word_embedding=word_embedding,
+                                  word_embedding_lengths=word_embedding_lengths,
                                   is_inference=False,
                                   lang_ids=lang_ids,
                                   run_glow=run_glow)
@@ -351,6 +377,7 @@ class ToucanTTS(torch.nn.Module):
                  utterance_embedding=None,
                  sentence_embedding=None,
                  word_embedding=None,
+                 word_embedding_lengths=None,
                  lang_ids=None,
                  run_glow=True):
 
@@ -380,6 +407,7 @@ class ToucanTTS(torch.nn.Module):
         if not self.use_word_embed:
             word_embedding = None
             word_boundaries_batch = None
+            word_embedding_lengths = None
         else:
             # get word boundaries
             word_boundaries_batch = []
@@ -418,9 +446,41 @@ class ToucanTTS(torch.nn.Module):
                                             text_masks,
                                             utterance_embedding=utterance_embedding,
                                             sentence_embedding=sentence_embedding,
-                                            word_embedding=word_embedding,
-                                            word_boundaries=word_boundaries_batch,
+                                            word_embedding=None,
+                                            word_boundaries=None,
                                             lang_ids=lang_ids)  # (B, Tmax, adim)
+        if word_embedding is not None:
+            # encoding the word embs
+            word_emb_masks = make_non_pad_mask(word_embedding_lengths, device=text_lengths.device).unsqueeze(-2)
+            encoded_word_embs, _ = self.word_emb_encoder(word_embedding,
+                                                        word_emb_masks)  # (B, Tmax, adim)
+            # concat
+            xs_enhanced = []
+            for batch_id, wbs in enumerate(word_boundaries_batch):
+                w_start = 0
+                phoneme_sequence = []
+                for i, wb_id in enumerate(wbs):
+                    # get phoneme embeddings corresponding to words according to word boundaries
+                    phoneme_embeds = encoded_texts[batch_id, w_start:wb_id+1]
+                    # get cooresponding word embedding
+                    try:
+                        word_embed = encoded_word_embs[batch_id, i]
+                    # if mismatch of words and phonemizer is not handled
+                    except IndexError:
+                        # take last word embedding again to avoid errors
+                        word_embed = encoded_word_embs[batch_id, -1]
+                    # concatenate phoneme embeddings with word embedding
+                    phoneme_embeds = _cat_with_word_embed(phoneme_embeddings=phoneme_embeds, word_embedding=word_embed)
+                    phoneme_sequence.append(phoneme_embeds)
+                    w_start = wb_id+1
+                # put whole phoneme sequence back together
+                phoneme_sequence = torch.cat(phoneme_sequence, dim=0)
+                xs_enhanced.append(phoneme_sequence)
+            # pad phoneme sequences to get whole batch
+            xs_enhanced_padded = pad_sequence(xs_enhanced, batch_first=True)
+            # apply projection
+            encoded_texts = self.word_emb_projection(xs_enhanced_padded)
+
 
         if is_inference:
             # predicting pitch, energy and durations
@@ -520,6 +580,7 @@ class ToucanTTS(torch.nn.Module):
                   utterance_embedding=None,
                   sentence_embedding=None,
                   word_embedding=None,
+                  word_embedding_lengths=None,
                   return_duration_pitch_energy=False,
                   lang_id=None,
                   run_postflow=True):
@@ -557,6 +618,7 @@ class ToucanTTS(torch.nn.Module):
                                            utterance_embedding=utterance_embeddings,
                                            sentence_embedding=sentence_embeddings,
                                            word_embedding=word_embeddings,
+                                           word_embedding_lengths=word_embedding_lengths,
                                            lang_ids=lang_id,
                                            run_glow=run_postflow)  # (1, L, odim)
         self.train()
@@ -583,6 +645,12 @@ def _integrate_with_sent_embed(hs, sent_embeddings, projection):
     embeddings_expanded = sent_embeddings.unsqueeze(1).expand(-1, hs.size(1), -1)
     hs = projection(torch.cat([hs, embeddings_expanded], dim=-1))
     return hs
+
+def _cat_with_word_embed(phoneme_embeddings, word_embedding):
+    # concat phoneme embeddings with corresponding word embedding and then apply projection
+    word_embeddings_expanded = torch.nn.functional.normalize(word_embedding, dim=0).unsqueeze(0).expand(phoneme_embeddings.size(0), -1)
+    phoneme_embeddings = torch.cat([phoneme_embeddings, word_embeddings_expanded], dim=-1)
+    return phoneme_embeddings
 
 
 if __name__ == '__main__':

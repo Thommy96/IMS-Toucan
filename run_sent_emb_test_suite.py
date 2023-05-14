@@ -187,7 +187,7 @@ if __name__ == '__main__':
     #test_controllable(version="ToucanTTS_03_Blizzard2013_sent_emb_a11_loss_bertcls_style_keep", model_id="03_Blizzard2013_sent_emb_a11_loss_bertcls_style_keep", exec_device=exec_device, vocoder_model_path=None, biggan=True, speaker_reference=speaker_reference, sent_emb_extractor=sent_emb_extractor, prompt=prompt)
     #test_controllable(version="ToucanTTS_03_Blizzard2013_sent_emb_a12_emoBERTcls_noadapt_adapted_prompt", model_id="03_Blizzard2013_sent_emb_a12_emoBERTcls_noadapt_adapted", exec_device=exec_device, vocoder_model_path=None, biggan=True, speaker_reference=speaker_reference, sent_emb_extractor=sent_emb_extractor, prompt=prompt, sent_emb_adaptor=sent_emb_adaptor)
 
-    test_sentence(version="ToucanTTS_03_LJSpeech", model_id="03_LJSpeech", exec_device=exec_device, vocoder_model_path=None, biggan=True, speaker_reference=speaker_reference)
+    test_controllable(version="ToucanTTS_03_EmoVDBSam", model_id="03_EmoVDBSam", exec_device=exec_device, vocoder_model_path=None, biggan=True, speaker_reference=speaker_reference)
 
     #test_controllable(version="ToucanTTS_01_PromptSpeech_ref", model_id="01_PromptSpeech", exec_device=exec_device, vocoder_model_path=None, biggan=True, speaker_reference=speaker_reference)
     #test_controllable(version="ToucanTTS_03_PromptSpeech_sent_emb_a11_bertlm", model_id="03_PromptSpeech_sent_emb_a11_bertlm", exec_device=exec_device, vocoder_model_path=None, biggan=True, speaker_reference=speaker_reference, sent_emb_extractor=sent_emb_extractor, prompt=prompt)

@@ -27,7 +27,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_02_LJSpeech_word_emb_bert"
+    name = "ToucanTTS_02_LJSpeech_word_emb_bert_TEST"
 
     if model_dir is not None:
         save_dir = model_dir
