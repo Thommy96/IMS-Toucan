@@ -18,6 +18,8 @@ from TrainingInterfaces.Spectrogram_to_Embedding.StyleEmbedding import StyleEmbe
 from Utility.storage_config import MODELS_DIR
 from Utility.utils import float2pcm
 
+import sys
+
 
 class ToucanTTSInterface(torch.nn.Module):
 
@@ -69,7 +71,7 @@ class ToucanTTSInterface(torch.nn.Module):
                 if "sent_emb" in tts_model_path:
                     raise RuntimeError
                 self.use_lang_id = False
-                self.phone2mel = ToucanTTS(weights=checkpoint["model"], lang_embs=None)  # multi speaker single language
+                self.phone2mel = ToucanTTS(weights=checkpoint["model"], lang_embs=None, speaker_embed_dim=None)  # multi speaker single language
             except RuntimeError:
                 try:
                     if "sent_emb" in tts_model_path:
@@ -110,7 +112,8 @@ class ToucanTTSInterface(torch.nn.Module):
                                     print("Loading sent emb architecture")
                                     self.use_word_emb = False
                                     self.use_sent_emb = True
-                                    self.use_lang_id = True
+                                    self.use_lang_id = False
+                                    speaker_embed_dim = None
                                     lang_embs=None
                                     if "_xvect" in tts_model_path and "_adapted" not in tts_model_path:
                                         utt_embed_dim = 512
@@ -193,10 +196,14 @@ class ToucanTTSInterface(torch.nn.Module):
                                         style_sent=True
                                         if "noadapt" in tts_model_path and "adapted" not in tts_model_path:
                                             utt_embed_dim = 768
+                                    if "a14" in tts_model_path:
+                                        speaker_embed_dim = 192
+                                        utt_embed_dim = 64
                                         
                                     self.phone2mel = ToucanTTS(weights=checkpoint["model"],
                                                                 lang_embs=lang_embs, 
                                                                 utt_embed_dim=utt_embed_dim,
+                                                                speaker_embed_dim=speaker_embed_dim,
                                                                 sent_embed_dim=64 if "adapted" in tts_model_path else sent_embed_dim,
                                                                 sent_embed_adaptation="noadapt" not in tts_model_path,
                                                                 sent_embed_encoder=sent_embed_encoder,
@@ -217,7 +224,7 @@ class ToucanTTSInterface(torch.nn.Module):
         #################################
         self.style_embedding_function = StyleEmbedding()
         if embedding_model_path is None:
-            check_dict = torch.load(os.path.join(MODELS_DIR, "EmoMulti_Embedding", "embedding_function.pt"), map_location="cpu")
+            check_dict = torch.load(os.path.join(MODELS_DIR, "EmoVDB_Embedding", "embedding_function.pt"), map_location="cpu")
         else:
             check_dict = torch.load(embedding_model_path, map_location="cpu")
         self.style_embedding_function.load_state_dict(check_dict["style_emb_func"])
@@ -259,6 +266,7 @@ class ToucanTTSInterface(torch.nn.Module):
         #  set defaults                #
         ################################
         self.default_utterance_embedding = checkpoint["default_emb"].to(self.device)
+        self.default_speaker_embedding = checkpoint["default_sp_emb"].to(self.device) if checkpoint["default_sp_emb"] is not None else None
         self.sentence_embedding = None
         self.audio_preprocessor = AudioPreprocessor(input_sr=16000, output_sr=16000, cut_silence=True, device=self.device)
         self.phone2mel.eval()
@@ -276,23 +284,29 @@ class ToucanTTSInterface(torch.nn.Module):
             self.default_utterance_embedding = embedding.squeeze().to(self.device)
             return
         assert os.path.exists(path_to_reference_audio)
-        if self.xvect_model is not None:
-            print("Extracting xvect from reference audio.")
-            wave, sr = torchaudio.load(path_to_reference_audio)
-            # mono
-            wave = torch.mean(wave, dim=0, keepdim=True)
-            # resampling
-            wave = torchaudio.functional.resample(wave, orig_freq=sr, new_freq=16000)
-            wave = wave.squeeze(0)
-            self.default_utterance_embedding = self.xvect_model.encode_batch(wave).squeeze(0).squeeze(0)
-        else:
-            wave, sr = soundfile.read(path_to_reference_audio)
-            if sr != self.audio_preprocessor.sr:
-                self.audio_preprocessor = AudioPreprocessor(input_sr=sr, output_sr=16000, cut_silence=True, device=self.device)
-            spec = self.audio_preprocessor.audio_to_mel_spec_tensor(wave).transpose(0, 1)
-            spec_len = torch.LongTensor([len(spec)])
-            self.default_utterance_embedding = self.style_embedding_function(spec.unsqueeze(0).to(self.device),
-                                                                            spec_len.unsqueeze(0).to(self.device)).squeeze()
+        wave, sr = soundfile.read(path_to_reference_audio)
+        if sr != self.audio_preprocessor.sr:
+            self.audio_preprocessor = AudioPreprocessor(input_sr=sr, output_sr=16000, cut_silence=True, device=self.device)
+        spec = self.audio_preprocessor.audio_to_mel_spec_tensor(wave).transpose(0, 1)
+        spec_len = torch.LongTensor([len(spec)])
+        self.default_utterance_embedding = self.style_embedding_function(spec.unsqueeze(0).to(self.device),
+                                                                        spec_len.unsqueeze(0).to(self.device)).squeeze()
+        
+    def set_speaker_embedding(self, path_to_reference_audio="", embedding=None):
+        if embedding is not None:
+            self.default_speaker_embedding = embedding.squeeze().to(self.device)
+            return
+        if self.xvect_model is None:
+            return
+        assert os.path.exists(path_to_reference_audio)
+        print("Extracting xvect from reference audio.")
+        wave, sr = torchaudio.load(path_to_reference_audio)
+        # mono
+        wave = torch.mean(wave, dim=0, keepdim=True)
+        # resampling
+        wave = torchaudio.functional.resample(wave, orig_freq=sr, new_freq=16000)
+        wave = wave.squeeze(0)
+        self.default_speaker_embedding = self.xvect_model.encode_batch(wave).squeeze(0).squeeze(0)
         
     def set_sentence_embedding(self, prompt:str):
         if self.use_sent_emb:
@@ -369,6 +383,7 @@ class ToucanTTSInterface(torch.nn.Module):
             mel, durations, pitch, energy = self.phone2mel(phones,
                                                            return_duration_pitch_energy=True,
                                                            utterance_embedding=self.default_utterance_embedding,
+                                                           speaker_embedding=self.default_speaker_embedding,
                                                            sentence_embedding=sentence_embedding,
                                                            word_embedding=word_embeddings,
                                                            durations=durations,

@@ -30,7 +30,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_05_EmoVDB_sent_emb_a11_emoBERTcls_ecapa"
+    name = "ToucanTTS_06_EmoVDB_sent_emb_a14_emoBERTcls_ecapa_rec_loss"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -110,6 +110,8 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
     use_concat_projection=False
     replace_utt_sent_emb = False
     style_sent = False
+    style_sent_random = False
+    speaker_embed_dim=None
 
     lang_embs=None
     if "_xvect" in name and "_adapted" not in name:
@@ -170,10 +172,15 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
         style_sent=True
         if "noadapt" in name and "adapted" not in name:
             utt_embed_dim = 768
+    if "a14" in name:
+        speaker_embed_dim = 192
+        utt_embed_dim = 64
+        style_sent_random = True
 
 
     model = ToucanTTS(lang_embs=lang_embs, 
                     utt_embed_dim=utt_embed_dim,
+                    speaker_embed_dim=speaker_embed_dim,
                     sent_embed_dim=64 if "adapted" in name else sent_embed_dim,
                     sent_embed_adaptation="noadapt" not in name,
                     sent_embed_encoder=sent_embed_encoder,
@@ -184,7 +191,8 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                     use_concat_projection=use_concat_projection,
                     use_sent_style_loss="loss" in name,
                     pre_embed="_pre" in name,
-                    style_sent=style_sent)
+                    style_sent=style_sent,
+                    style_sent_random=style_sent_random)
 
     if use_wandb:
         wandb.init(
@@ -196,10 +204,10 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                datasets=[train_set],
                device=device,
                save_directory=save_dir,
-               batch_size=12,
+               batch_size=8,
                eval_lang="en",
                path_to_checkpoint=resume_checkpoint,
-               path_to_embed_model=os.path.join(MODELS_DIR, "EmoMulti_Embedding", "embedding_function.pt"),
+               path_to_embed_model=os.path.join(MODELS_DIR, "EmoVDB_Embedding", "embedding_function.pt"),
                fine_tune=finetune,
                resume=resume,
                use_wandb=use_wandb,
@@ -208,6 +216,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                emovdb=True,
                replace_utt_sent_emb=replace_utt_sent_emb,
                use_adapted_embs="adapted" in name,
-               path_to_xvect=path_to_xvect)
+               path_to_xvect=path_to_xvect,
+               use_style_rec_loss="_rec" in name)
     if use_wandb:
         wandb.finish()

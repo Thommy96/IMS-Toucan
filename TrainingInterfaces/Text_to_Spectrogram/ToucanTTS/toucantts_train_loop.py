@@ -59,7 +59,8 @@ def train_loop(net,
                replace_utt_sent_emb=False,
                word_embedding_extractor=None,
                use_adapted_embs=False,
-               path_to_xvect=None
+               path_to_xvect=None,
+               use_style_rec_loss=False
                ):
     """
     see train loop arbiter for explanations of the arguments
@@ -67,13 +68,16 @@ def train_loop(net,
     net = net.to(device)
     if use_discriminator:
         discriminator = SpectrogramDiscriminator().to(device)
+    
+    if use_style_rec_loss:
+        print("Using style rec loss")
+        mse_style_rec = torch.nn.MSELoss(reduction='mean')
 
-    if path_to_xvect is None:
-        style_embedding_function = StyleEmbedding().to(device)
-        check_dict = torch.load(path_to_embed_model, map_location=device)
-        style_embedding_function.load_state_dict(check_dict["style_emb_func"])
-        style_embedding_function.eval()
-        style_embedding_function.requires_grad_(False)
+    style_embedding_function = StyleEmbedding().to(device)
+    check_dict = torch.load(path_to_embed_model, map_location=device)
+    style_embedding_function.load_state_dict(check_dict["style_emb_func"])
+    style_embedding_function.eval()
+    style_embedding_function.requires_grad_(False)
 
     if use_adapted_embs:
         sentence_embedding_adaptor = SentenceEmbeddingAdaptor(sent_embed_dim=768, utt_embed_dim=64, speaker_embed_dim=512 if path_to_xvect is not None else None).to(device)
@@ -112,6 +116,8 @@ def train_loop(net,
             step_counter = check_dict["step_counter"]
     start_time = time.time()
     while True:
+        style_embedding_function.train()
+        style_embedding_function.requires_grad_(False)
         net.train()
         epoch += 1
         l1_losses_total = list()
@@ -122,6 +128,7 @@ def train_loop(net,
         generator_losses_total = list()
         discriminator_losses_total = list()
         sent_style_losses_total = list()
+        style_rec_losses_total = list()
 
         for batch in tqdm(train_loader):
             train_loss = 0.0
@@ -130,9 +137,11 @@ def train_loop(net,
                 embeddings = []
                 for path in filepaths:
                     embeddings.append(path_to_xvect[path])
-                style_embedding = torch.stack(embeddings).to(device)
+                speaker_embedding = torch.stack(embeddings).to(device)
             else:
-                style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
+                speaker_embedding = None
+
+            style_embedding = style_embedding_function(batch_of_spectrograms=batch[2].to(device),
                                                         batch_of_spectrogram_lengths=batch[3].to(device))
             if sent_embs is not None:
                 if emovdb:
@@ -171,6 +180,7 @@ def train_loop(net,
                 gold_pitch=batch[6].to(device),  # mind the switched order
                 gold_energy=batch[5].to(device),  # mind the switched order
                 utterance_embedding=style_embedding,
+                speaker_embedding=speaker_embedding,
                 sentence_embedding=sentence_embedding,
                 word_embedding=word_embedding,
                 lang_ids=batch[8].to(device),
@@ -188,6 +198,15 @@ def train_loop(net,
                     train_loss = train_loss + generator_loss
                 discriminator_losses_total.append(discriminator_loss.item())
                 generator_losses_total.append(generator_loss.item())
+            
+            if use_style_rec_loss:
+                style_embedding_predicted = style_embedding_function(batch_of_spectrograms=generated_spectrograms,
+                                                                     batch_of_spectrogram_lengths=batch[3].to(device))
+                style_rec_loss = mse_style_rec(style_embedding_predicted, style_embedding)
+
+                if not torch.isnan(style_rec_loss):
+                    train_loss = train_loss + style_rec_loss
+                style_rec_losses_total.append(style_rec_loss.item())
 
             if not torch.isnan(l1_loss):
                 train_loss = train_loss + l1_loss
@@ -222,16 +241,16 @@ def train_loop(net,
 
         # EPOCH IS OVER
         net.eval()
-        if path_to_xvect is None:
-            style_embedding_function.eval()
+        style_embedding_function.eval()
         if sentence_embedding_adaptor is not None:
             sentence_embedding_adaptor.eval()
         if path_to_xvect is not None:
-            default_embedding = path_to_xvect[train_dataset[0][10]]
+            default_speaker_embedding = path_to_xvect[train_dataset[0][10]]
         else:
-            default_embedding = style_embedding_function(
-                batch_of_spectrograms=train_dataset[0][2].unsqueeze(0).to(device),
-                batch_of_spectrogram_lengths=train_dataset[0][3].unsqueeze(0).to(device)).squeeze()
+            default_speaker_embedding = None
+        default_embedding = style_embedding_function(
+            batch_of_spectrograms=train_dataset[0][2].unsqueeze(0).to(device),
+            batch_of_spectrogram_lengths=train_dataset[0][3].unsqueeze(0).to(device)).squeeze()
         if replace_utt_sent_emb:
             if emovdb:
                 if random_emb:
@@ -246,6 +265,7 @@ def train_loop(net,
             "step_counter": step_counter,
             "scheduler"   : scheduler.state_dict(),
             "default_emb" : default_embedding,
+            "default_sp_emb" : default_speaker_embedding,
         }, os.path.join(save_directory, "checkpoint_{}.pt".format(step_counter)))
         delete_old_checkpoints(save_directory, keep=5)
 
@@ -261,6 +281,7 @@ def train_loop(net,
                 "energy_loss"  : round(sum(energy_losses_total) / len(energy_losses_total), 5),
                 "glow_loss"    : round(sum(glow_losses_total) / len(glow_losses_total), 5) if len(glow_losses_total) != 0 else None,
                 "sentence_style_loss": round(sum(sent_style_losses_total) / len(sent_style_losses_total), 5) if len(sent_style_losses_total) != 0 else None,
+                "style_rec_loss": round(sum(style_rec_losses_total) / len(style_rec_losses_total), 5) if len(style_rec_losses_total) != 0 else None,
             }, step=step_counter)
             if use_discriminator:
                 wandb.log({
@@ -276,6 +297,7 @@ def train_loop(net,
                                                                           step=step_counter,
                                                                           lang=lang,
                                                                           default_emb=default_embedding,
+                                                                          default_sp_emb=default_speaker_embedding,
                                                                           sent_embs=sent_embs,
                                                                           random_emb=random_emb,
                                                                           emovdb=emovdb,
@@ -296,8 +318,8 @@ def train_loop(net,
         if step_counter > 3 * postnet_start_steps:
             # Run manual SWA (torch builtin doesn't work unfortunately due to the use of weight norm in the postflow)
             checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=save_directory, n=2)
-            averaged_model, default_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
-            save_model_for_use(model=averaged_model, default_embed=default_embed, name=os.path.join(save_directory, "best.pt"))
+            averaged_model, default_embed, default_sp_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
+            save_model_for_use(model=averaged_model, default_embed=default_embed, default_sp_embed=default_sp_embed, name=os.path.join(save_directory, "best.pt"))
             check_dict = torch.load(os.path.join(save_directory, "best.pt"), map_location=device)
             net.load_state_dict(check_dict["model"])
 

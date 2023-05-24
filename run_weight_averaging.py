@@ -21,7 +21,7 @@ def load_net_toucan(path):
             net.load_state_dict(check_dict["model"])
         except RuntimeError:
             try:
-                net = ToucanTTS(lang_embs=None)
+                net = ToucanTTS(lang_embs=None, speaker_embed_dim=None)
                 net.load_state_dict(check_dict["model"])
             except RuntimeError:
                 try:
@@ -55,6 +55,7 @@ def load_net_toucan(path):
                                 except RuntimeError:
                                     print("Loading sent emb architecture")
                                     lang_embs=None
+                                    speaker_embed_dim = None
                                     if "_xvect" in path and "_adapted" not in path:
                                         utt_embed_dim = 512
                                     elif "_ecapa" in path and "_adapted" not in path:
@@ -84,6 +85,7 @@ def load_net_toucan(path):
                                     concat_sent_style=False
                                     use_concat_projection=False
                                     style_sent=False
+                                    style_sent_random=False
                                     if "a01" in path:
                                         sent_embed_encoder=True
                                     if "a02" in path:
@@ -134,6 +136,10 @@ def load_net_toucan(path):
                                         style_sent=True
                                         if "noadapt" in path and "adapted" not in path:
                                             utt_embed_dim = 768
+                                    if "a14" in path:
+                                        speaker_embed_dim = 192
+                                        utt_embed_dim = 64
+                                        style_sent_random = True
 
                                     net = ToucanTTS(lang_embs=lang_embs, 
                                                     utt_embed_dim=utt_embed_dim,
@@ -147,7 +153,8 @@ def load_net_toucan(path):
                                                     use_concat_projection=use_concat_projection,
                                                     use_sent_style_loss="loss" in path,
                                                     pre_embed="_pre" in path,
-                                                    style_sent=style_sent)
+                                                    style_sent=style_sent,
+                                                    style_sent_random=style_sent_random)
                                     net.load_state_dict(check_dict["model"])
     except RuntimeError:
         try:
@@ -160,7 +167,7 @@ def load_net_toucan(path):
             except RuntimeError:
                 net = StochasticToucanTTS(lang_embs=None, utt_embed_dim=None)
                 net.load_state_dict(check_dict["model"])
-    return net, check_dict["default_emb"]
+    return net, check_dict["default_emb"], check_dict["default_sp_emb"]
 
 
 def load_net_hifigan(path):
@@ -201,11 +208,12 @@ def average_checkpoints(list_of_checkpoint_paths, load_func):
     checkpoints_weights = {}
     model = None
     default_embed = None
+    default_sp_embed = None
 
     # LOAD CHECKPOINTS
     for path_to_checkpoint in list_of_checkpoint_paths:
         print("loading model {}".format(path_to_checkpoint))
-        model, default_embed = load_func(path=path_to_checkpoint)
+        model, default_embed, default_sp_embed = load_func(path=path_to_checkpoint)
         checkpoints_weights[path_to_checkpoint] = dict(model.named_parameters())
 
     # AVERAGE CHECKPOINTS
@@ -225,17 +233,17 @@ def average_checkpoints(list_of_checkpoint_paths, load_func):
     model_dict.update(dict_params)
     model.load_state_dict(model_dict)
     model.eval()
-    return model, default_embed
+    return model, default_embed, default_sp_embed
 
 
-def save_model_for_use(model, name="", default_embed=None, dict_name="model"):
+def save_model_for_use(model, name="", default_embed=None, default_sp_embed=None, dict_name="model"):
     print("saving model...")
     if default_embed is None:
         # HiFiGAN case
         torch.save({dict_name: model.state_dict()}, name)
     else:
         # TTS case
-        torch.save({dict_name: model.state_dict(), "default_emb": default_embed}, name)
+        torch.save({dict_name: model.state_dict(), "default_emb": default_embed, "default_sp_emb": default_sp_embed}, name)
     print("...done!")
 
 
@@ -255,12 +263,12 @@ def make_best_in_all():
                     continue
                 averaged_model, _ = average_checkpoints(checkpoint_paths, load_func=load_net_bigvgan)
                 save_model_for_use(model=averaged_model, name=os.path.join(MODELS_DIR, model_dir, "best.pt"), dict_name="generator")
-            elif "ToucanTTS" in model_dir:
+            elif "ToucanTTS_06_EmoVDB_sent_emb_a14" in model_dir:
                 checkpoint_paths = get_n_recent_checkpoints_paths(checkpoint_dir=os.path.join(MODELS_DIR, model_dir), n=3)
                 if checkpoint_paths is None:
                     continue
-                averaged_model, default_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
-                save_model_for_use(model=averaged_model, default_embed=default_embed, name=os.path.join(MODELS_DIR, model_dir, "best.pt"))
+                averaged_model, default_embed, default_sp_embed = average_checkpoints(checkpoint_paths, load_func=load_net_toucan)
+                save_model_for_use(model=averaged_model, default_embed=default_embed, default_sp_embed=default_sp_embed, name=os.path.join(MODELS_DIR, model_dir, "best.pt"))
 
 
 def count_parameters(net):

@@ -12,6 +12,7 @@ from TrainingInterfaces.TrainingPipelines.GST_FastSpeech2 import run as embeddin
 from TrainingInterfaces.TrainingPipelines.GST_Blizzard2013 import run as b_embedding
 from TrainingInterfaces.TrainingPipelines.GST_EmoVDBSam import run as emo_embedding
 from TrainingInterfaces.TrainingPipelines.GST_EmoMulti import run as emomulti_embedding
+from TrainingInterfaces.TrainingPipelines.GST_EmoVDB import run as emovdb_embedding
 from TrainingInterfaces.TrainingPipelines.StochasticToucanTTS_Nancy import run as nancystoch
 from TrainingInterfaces.TrainingPipelines.ToucanTTS_IntegrationTest import run as tt_integration_test
 from TrainingInterfaces.TrainingPipelines.ToucanTTS_MetaCheckpoint import run as meta
@@ -80,6 +81,7 @@ pipeline_dict = {
     "b_embedding"   : b_embedding,
     "emo_embedding" : emo_embedding,
     "emomulti_embedding" : emomulti_embedding,
+    "emovdb_embedding" : emovdb_embedding,
     # training the aligner from scratch (not recommended, best to use provided checkpoint)
     "aligner"       : aligner,
     # training the sentence embedding adaptor

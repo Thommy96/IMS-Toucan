@@ -27,7 +27,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_01_EmoVDB"
+    name = "ToucanTTS_02_EmoVDB"
 
     if model_dir is not None:
         save_dir = model_dir
@@ -39,8 +39,14 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                                           corpus_dir=os.path.join(PREPROCESSING_DIR, "emovdb"),
                                           lang="en",
                                           save_imgs=False)
+    
+    if "_ecapa" in name:
+        print(f"Loading ecapa embeddings from {os.path.join(PREPROCESSING_DIR, 'ecapa_emomulti', 'ecapa.pt')}")
+        path_to_ecapa = torch.load(os.path.join(PREPROCESSING_DIR, "ecapa_emomulti", "ecapa.pt"), map_location='cpu')
+    else:
+        path_to_ecapa = None
 
-    model = ToucanTTS(lang_embs=None)
+    model = ToucanTTS(lang_embs=None, speaker_embed_dim=None)
     if use_wandb:
         import wandb
         wandb.init(
@@ -52,12 +58,13 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                datasets=[train_set],
                device=device,
                save_directory=save_dir,
-               batch_size=4,
+               batch_size=8,
                eval_lang="en",
                path_to_checkpoint=resume_checkpoint,
-               path_to_embed_model=os.path.join(MODELS_DIR, "Embedding", "embedding_function.pt"),
+               path_to_embed_model=os.path.join(MODELS_DIR, "EmoVDB_Embedding", "embedding_function.pt"),
                fine_tune=finetune,
                resume=resume,
-               use_wandb=use_wandb)
+               use_wandb=use_wandb,
+               path_to_xvect=path_to_ecapa)
     if use_wandb:
         wandb.finish()

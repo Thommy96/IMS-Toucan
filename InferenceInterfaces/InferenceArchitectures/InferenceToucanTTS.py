@@ -2,7 +2,7 @@ import torch
 from torch.nn import Linear
 from torch.nn import Sequential
 from torch.nn import Tanh
-from torch.nn import LeakyReLU
+from torch.nn import ReLU
 from torch.nn import LayerNorm
 
 from Layers.Conformer import Conformer
@@ -72,6 +72,7 @@ class ToucanTTS(torch.nn.Module):
 
                  # additional features
                  utt_embed_dim=64,
+                 speaker_embed_dim=192,
                  detach_postflow=True,
                  lang_embs=8000,
                  weights=None,
@@ -108,8 +109,12 @@ class ToucanTTS(torch.nn.Module):
         if self.use_sent_embed:
             if self.sent_embed_adaptation:
                 if self.use_sent_style_loss or self.style_sent:
-                    self.sentence_embedding_adaptation = Linear(sent_embed_dim, 512)
-                    sent_embed_dim = 512
+                    self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim // 2),
+                                                                    ReLU(),
+                                                                    Linear(sent_embed_dim // 2, sent_embed_dim // 4),
+                                                                    ReLU(),
+                                                                    Linear(sent_embed_dim // 4, 64))
+                    sent_embed_dim = 64
                 else:
                     self.sentence_embedding_adaptation = Sequential(Linear(sent_embed_dim, sent_embed_dim // 2),
                                                                     Tanh(),
@@ -150,7 +155,7 @@ class ToucanTTS(torch.nn.Module):
                                  use_cnn_module=use_cnn_in_conformer,
                                  cnn_module_kernel=conformer_encoder_kernel_size,
                                  zero_triu=False,
-                                 utt_embed=utt_embed_dim,
+                                 utt_embed=None,
                                  lang_embs=lang_embs,
                                  sent_embed_dim=sent_embed_dim if sent_embed_encoder else None,
                                  sent_embed_each=sent_embed_each,
@@ -162,19 +167,22 @@ class ToucanTTS(torch.nn.Module):
                                                     n_chans=duration_predictor_chans,
                                                     kernel_size=duration_predictor_kernel_size,
                                                     dropout_rate=duration_predictor_dropout_rate,
-                                                    utt_embed_dim=utt_embed_dim)
+                                                    utt_embed_dim=utt_embed_dim,
+                                                    speaker_embed_dim=speaker_embed_dim)
 
         self.pitch_predictor = VariancePredictor(idim=attention_dimension, n_layers=pitch_predictor_layers,
                                                  n_chans=pitch_predictor_chans,
                                                  kernel_size=pitch_predictor_kernel_size,
                                                  dropout_rate=pitch_predictor_dropout,
-                                                 utt_embed_dim=utt_embed_dim)
+                                                 utt_embed_dim=utt_embed_dim,
+                                                 speaker_embed_dim=speaker_embed_dim)
 
         self.energy_predictor = VariancePredictor(idim=attention_dimension, n_layers=energy_predictor_layers,
                                                   n_chans=energy_predictor_chans,
                                                   kernel_size=energy_predictor_kernel_size,
                                                   dropout_rate=energy_predictor_dropout,
-                                                  utt_embed_dim=utt_embed_dim)
+                                                  utt_embed_dim=utt_embed_dim,
+                                                  speaker_embed_dim=speaker_embed_dim)
 
         self.pitch_embed = Sequential(torch.nn.Conv1d(in_channels=1,
                                                       out_channels=attention_dimension,
@@ -249,6 +257,7 @@ class ToucanTTS(torch.nn.Module):
                  gold_energy=None,
                  duration_scaling_factor=1.0,
                  utterance_embedding=None,
+                 speaker_embedding=None,
                  sentence_embedding=None,
                  word_embedding=None,
                  lang_ids=None,
@@ -264,6 +273,9 @@ class ToucanTTS(torch.nn.Module):
         else:
             utterance_embedding = torch.nn.functional.normalize(utterance_embedding)
 
+        if speaker_embedding is not None:
+            speaker_embedding = torch.nn.functional.normalize(speaker_embedding)
+
         if not self.use_sent_embed:
             sentence_embedding = None
         else:
@@ -271,7 +283,6 @@ class ToucanTTS(torch.nn.Module):
             if self.sent_embed_adaptation:
                 # forward sentence embedding adaptation
                 sentence_embedding = self.sentence_embedding_adaptation(sentence_embedding)
-                utterance_embedding_decoder = utterance_embedding
             utterance_embedding = sentence_embedding if self.style_sent else utterance_embedding
 
         if not self.use_word_embed:
@@ -305,9 +316,9 @@ class ToucanTTS(torch.nn.Module):
                                         lang_ids=lang_ids)
 
         # predicting pitch, energy and durations
-        pitch_predictions = self.pitch_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding) if gold_pitch is None else gold_pitch
-        energy_predictions = self.energy_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding) if gold_energy is None else gold_energy
-        predicted_durations = self.duration_predictor.inference(encoded_texts, padding_mask=None, utt_embed=utterance_embedding) if gold_durations is None else gold_durations
+        pitch_predictions = self.pitch_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, speaker_embed=speaker_embedding) if gold_pitch is None else gold_pitch
+        energy_predictions = self.energy_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, speaker_embed=speaker_embedding) if gold_energy is None else gold_energy
+        predicted_durations = self.duration_predictor.inference(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, speaker_embed=speaker_embedding) if gold_durations is None else gold_durations
 
         # modifying the predictions with linguistic knowledge and control parameters
         for phoneme_index, phoneme_vector in enumerate(text_tensors.squeeze(0)):
@@ -361,6 +372,7 @@ class ToucanTTS(torch.nn.Module):
                 pitch=None,
                 energy=None,
                 utterance_embedding=None,
+                speaker_embedding=None,
                 sentence_embedding=None,
                 word_embedding=None,
                 return_duration_pitch_energy=False,
@@ -417,6 +429,7 @@ class ToucanTTS(torch.nn.Module):
                                            gold_pitch=pitch,
                                            gold_energy=energy,
                                            utterance_embedding=utterance_embedding.unsqueeze(0) if utterance_embedding is not None else None,
+                                           speaker_embedding=speaker_embedding.unsqueeze(0) if speaker_embedding is not None else None,
                                            sentence_embedding=sentence_embedding.unsqueeze(0) if sentence_embedding is not None else None,
                                            word_embedding=word_embedding.unsqueeze(0) if word_embedding is not None else None,
                                            lang_ids=lang_id,
