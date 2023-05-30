@@ -7,17 +7,19 @@ import torch
 
 from Layers.DurationPredictor import DurationPredictorLoss
 from Utility.utils import make_non_pad_mask
+from Utility.diverse_losses import LaplacianMixtureLoss
 
 
 class ToucanTTSLoss(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.l1_criterion = torch.nn.L1Loss(reduction="none")
+        #self.l1_criterion = torch.nn.L1Loss(reduction="none")
+        self.lm_criterion = LaplacianMixtureLoss()
         self.duration_criterion = DurationPredictorLoss(reduction="none")
         self.mse_criterion = torch.nn.MSELoss(reduction="none")
 
-    def forward(self, after_outs, before_outs, gold_spectrograms, spectrogram_lengths, text_lengths, gold_durations, predicted_durations, predicted_pitch, predicted_energy, gold_pitch, gold_energy):
+    def forward(self, after_outs, before_outs, gold_spectrograms, spectrogram_lengths, text_lengths, gold_durations, predicted_durations, predicted_pitch, predicted_energy, gold_pitch, gold_energy, lm_mean, lm_beta, lm_pi):
         """
         Args:
             after_outs (Tensor): Batch of outputs after postnets (B, Lmax, odim).
@@ -38,9 +40,10 @@ class ToucanTTSLoss(torch.nn.Module):
         """
 
         # calculate loss
-        l1_loss = self.l1_criterion(before_outs, gold_spectrograms)
-        if after_outs is not None:
-            l1_loss = l1_loss + self.l1_criterion(after_outs, gold_spectrograms)
+        #l1_loss = self.l1_criterion(before_outs, gold_spectrograms)
+        lm_loss = self.lm_criterion(gold_spectrograms, lm_mean, lm_beta, lm_pi)
+        #if after_outs is not None:
+         #   l1_loss = l1_loss + self.l1_criterion(after_outs, gold_spectrograms)
         duration_loss = self.duration_criterion(predicted_durations, gold_durations)
         pitch_loss = self.mse_criterion(predicted_pitch, gold_pitch)
         energy_loss = self.mse_criterion(predicted_energy, gold_energy)
@@ -58,9 +61,10 @@ class ToucanTTSLoss(torch.nn.Module):
         energy_loss = (energy_loss.mul(variance_weights).masked_select(variance_masks).sum())
 
         # apply weight
-        l1_loss = l1_loss.mul(out_weights).masked_select(out_masks).sum()
+        #l1_loss = l1_loss.mul(out_weights).masked_select(out_masks).sum()
+        lm_loss = lm_loss.mul(out_weights).masked_select(out_masks).sum()
         duration_loss = (duration_loss.mul(duration_weights).masked_select(duration_masks).sum())
         pitch_loss = pitch_loss.mul(variance_weights).masked_select(variance_masks).sum()
         energy_loss = (energy_loss.mul(variance_weights).masked_select(variance_masks).sum())
 
-        return l1_loss, duration_loss, pitch_loss, energy_loss
+        return lm_loss, duration_loss, pitch_loss, energy_loss

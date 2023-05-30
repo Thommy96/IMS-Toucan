@@ -96,6 +96,9 @@ class ToucanTTS(torch.nn.Module):
                  energy_embed_kernel_size=1,
                  energy_embed_dropout=0.0,
 
+                 # laplacian mixture model
+                 laplacian_k = 5,
+
                  # additional features
                  utt_embed_dim=64,
                  lang_embs=8000,
@@ -268,6 +271,12 @@ class ToucanTTS(torch.nn.Module):
 
         self.feat_out = Linear(attention_dimension, output_spectrogram_channels)
 
+        # for LM Loss, predict mean, beta (mean absolute deviation) and pi (mixture probability of each component k)
+        self.laplacian_k = laplacian_k
+        self.mean_layer = torch.nn.Conv2d(in_channels=attention_dimension, out_channels=output_spectrogram_channels * self.laplacian_k, kernel_size=(1, 1))
+        self.beta_layer = torch.nn.Conv2d(in_channels=attention_dimension, out_channels=output_spectrogram_channels * self.laplacian_k, kernel_size=(1, 1))
+        self.pi_layer = torch.nn.Conv2d(in_channels=attention_dimension, out_channels=output_spectrogram_channels * self.laplacian_k, kernel_size=(1, 1))
+
         if self.sent_embed_postnet:
             self.decoder_out_sent_emb_projection = Sequential(Linear(output_spectrogram_channels + sent_embed_dim,
                                                                     output_spectrogram_channels),
@@ -343,7 +352,10 @@ class ToucanTTS(torch.nn.Module):
         predicted_pitch, \
         predicted_energy, \
         glow_loss, \
-        sent_style_loss = self._forward(text_tensors=text_tensors,
+        sent_style_loss, \
+        mean, \
+        beta, \
+        pi = self._forward(text_tensors=text_tensors,
                                   text_lengths=text_lengths,
                                   gold_speech=gold_speech,
                                   speech_lengths=speech_lengths,
@@ -359,7 +371,7 @@ class ToucanTTS(torch.nn.Module):
                                   run_glow=run_glow)
 
         # calculate loss
-        l1_loss, duration_loss, pitch_loss, energy_loss = self.criterion(after_outs=after_outs,
+        lm_loss, duration_loss, pitch_loss, energy_loss = self.criterion(after_outs=after_outs,
                                                                          # if a regular PostNet is used, the post-PostNet outs have to go here. The flow has its own loss though, so we hard-code this to None
                                                                          before_outs=before_outs,
                                                                          gold_spectrograms=gold_speech,
@@ -370,13 +382,16 @@ class ToucanTTS(torch.nn.Module):
                                                                          predicted_pitch=predicted_pitch,
                                                                          predicted_energy=predicted_energy,
                                                                          gold_pitch=gold_pitch,
-                                                                         gold_energy=gold_energy)
+                                                                         gold_energy=gold_energy,
+                                                                         lm_mean=mean,
+                                                                         lm_beta=beta,
+                                                                         lm_pi=pi)
 
         if return_mels:
             if after_outs is None:
                 after_outs = before_outs
-            return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, after_outs,
-        return l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss
+            return lm_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, after_outs,
+        return lm_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss
 
     def _forward(self,
                  text_tensors,
@@ -515,6 +530,26 @@ class ToucanTTS(torch.nn.Module):
                                             sentence_embedding=sentence_embedding)
         decoded_spectrogram = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.output_spectrogram_channels)
 
+        # predict laplacian mixture parameters
+        mean = self.mean_layer(decoded_speech.unsqueeze(-1).transpose(1, 2))
+        beta = self.beta_layer(decoded_speech.unsqueeze(-1).transpose(1, 2))
+        pi = self.pi_layer(decoded_speech.unsqueeze(-1).transpose(1, 2))
+
+        # reshape to shape (batch_size, laplacian_k, timesteps, spectrogram channels)
+        mean = mean.view(-1, self.laplacian_k, decoded_speech.size(1), self.output_spectrogram_channels)
+        beta = beta.view(-1, self.laplacian_k, decoded_speech.size(1), self.output_spectrogram_channels)
+        pi = pi.view(-1, self.laplacian_k, decoded_speech.size(1), self.output_spectrogram_channels)
+
+        # beta has to be positive and non-zero
+        # we add a very small number to ensure it never is zero
+        beta = torch.abs(beta) + 1e-8
+
+        # pi has to be a probability distribution
+        pi = torch.softmax(pi, dim=1)
+
+        # sample spectrogram from predicted distribution
+        #decoded_spectrogram = sample_from_predicted_distribution(mean, beta, pi)
+
         refined_spectrogram = decoded_spectrogram + self.conv_postnet(decoded_spectrogram.transpose(1, 2)).transpose(1, 2)
 
         # refine spectrogram further with a normalizing flow (requires warmup, so it's not always on)
@@ -560,7 +595,10 @@ class ToucanTTS(torch.nn.Module):
                    pitch_predictions, \
                    energy_predictions, \
                    glow_loss, \
-                   sent_style_loss
+                   sent_style_loss, \
+                   mean, \
+                   beta, \
+                   pi
 
     @torch.inference_mode()
     def inference(self,
@@ -635,6 +673,31 @@ def _integrate_with_sent_embed(hs, sent_embeddings, projection):
     embeddings_expanded = sent_embeddings.unsqueeze(1).expand(-1, hs.size(1), -1)
     hs = projection(torch.cat([hs, embeddings_expanded], dim=-1))
     return hs
+
+import torch
+
+def sample_from_predicted_distribution(mean, beta, pi):
+    # sample mel spectrogram from predicted distribution
+    batch_size, K, T, F = mean.size()
+
+    # get components with highest probability
+    _, max_component_indices = torch.max(pi, dim=1)
+
+    # expand dimensions for gather
+    max_component_indices_exp = max_component_indices.unsqueeze(-1)
+
+    # gather mean and beta values from components with highest probability
+    mean_selected = torch.gather(mean, 1, max_component_indices_exp)
+    beta_selected = torch.gather(beta, 1, max_component_indices_exp)
+
+    # reshape mean and beta values
+    mean_selected = mean_selected.view(batch_size, T, F)
+    beta_selected = beta_selected.view(batch_size, T, F)
+
+    # sample from Laplace distribution for each entry in each spectrogram of the batch
+    sampled_values = torch.distributions.Laplace(mean_selected, beta_selected).sample()
+
+    return sampled_values
 
 
 if __name__ == '__main__':

@@ -27,7 +27,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_02_EmoVDBSam"
+    name = "ToucanTTS_TESTLMLOSS2_EmoVDBSam"
 
     if model_dir is not None:
         save_dir = model_dir

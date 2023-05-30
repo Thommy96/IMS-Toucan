@@ -128,3 +128,22 @@ def ssim(img1, img2, window_size=11, size_average=True):
             window = window.cuda(img1.get_device())
         window = window.type_as(img1)
     return _ssim(img1, img2, window, window_size, channel, size_average)
+
+class LaplacianMixtureLoss(torch.nn.Module):
+
+    def __init__(self):
+        super(LaplacianMixtureLoss, self).__init__()
+    
+    def forward(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
+        batch_size, k, T, F = y_pred_mean.size()
+        loss = torch.zeros(batch_size, T, F).to(y_true.device)
+
+        for i in range(k):
+            mean_i = y_pred_mean[:, i]
+            beta_i = y_pred_beta[:, i]
+            pi_i = y_pred_pi[:, i]
+
+            component_loss = pi_i * (torch.exp(-torch.abs(y_true - mean_i) / beta_i) / (2 * beta_i))
+            loss += component_loss
+        loss = -torch.log(loss)
+        return loss

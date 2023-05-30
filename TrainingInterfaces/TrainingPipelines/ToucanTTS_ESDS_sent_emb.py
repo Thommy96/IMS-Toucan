@@ -28,7 +28,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
 
     print("Preparing")
 
-    name = "ToucanTTS_06c_ESDS_sent_emb_a11_emoBERTcls_xvect"
+    name = "ToucanTTS_TESTLMLoss_ESDS_sent_emb_a11_emoBERTcls_static"
     """
     a01: integrate before encoder
     a02: integrate before encoder and decoder
@@ -214,7 +214,7 @@ def run(gpu_id, resume_checkpoint, finetune, model_dir, resume, use_wandb, wandb
                datasets=[train_set],
                device=device,
                save_directory=save_dir,
-               batch_size=16,
+               batch_size=8,
                eval_lang="en",
                path_to_checkpoint=resume_checkpoint,
                path_to_embed_model=os.path.join(MODELS_DIR, "EmoMulti_Embedding", "embedding_function.pt"),

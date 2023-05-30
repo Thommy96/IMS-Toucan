@@ -115,7 +115,7 @@ def train_loop(net,
     while True:
         net.train()
         epoch += 1
-        l1_losses_total = list()
+        lm_losses_total = list()
         glow_losses_total = list()
         duration_losses_total = list()
         pitch_losses_total = list()
@@ -169,7 +169,7 @@ def train_loop(net,
                 word_embedding = None
                 sentence_lens = None
 
-            l1_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, generated_spectrograms = net(
+            lm_loss, duration_loss, pitch_loss, energy_loss, glow_loss, sent_style_loss, generated_spectrograms = net(
                 text_tensors=batch[0].to(device),
                 text_lengths=batch[1].to(device),
                 gold_speech=batch[2].to(device),
@@ -197,8 +197,8 @@ def train_loop(net,
                 discriminator_losses_total.append(discriminator_loss.item())
                 generator_losses_total.append(generator_loss.item())
 
-            if not torch.isnan(l1_loss):
-                train_loss = train_loss + l1_loss
+            if not torch.isnan(lm_loss):
+                train_loss = train_loss + lm_loss
             if not torch.isnan(duration_loss):
                 train_loss = train_loss + duration_loss
             if not torch.isnan(pitch_loss):
@@ -213,7 +213,7 @@ def train_loop(net,
                     train_loss = train_loss + sent_style_loss
                 sent_style_losses_total.append(sent_style_loss.item())
 
-            l1_losses_total.append(l1_loss.item())
+            lm_losses_total.append(lm_loss.item())
             duration_losses_total.append(duration_loss.item())
             pitch_losses_total.append(pitch_loss.item())
             energy_losses_total.append(energy_loss.item())
@@ -259,11 +259,11 @@ def train_loop(net,
 
         print("\nEpoch:                  {}".format(epoch))
         print("Time elapsed:           {} Minutes".format(round((time.time() - start_time) / 60)))
-        print("Reconstruction Loss:    {}".format(round(sum(l1_losses_total) / len(l1_losses_total), 3)))
+        print("Laplacian Mixture Loss:    {}".format(round(sum(lm_losses_total) / len(lm_losses_total), 3)))
         print("Steps:                  {}\n".format(step_counter))
         if use_wandb:
             wandb.log({
-                "l1_loss"      : round(sum(l1_losses_total) / len(l1_losses_total), 5),
+                "lm_loss"      : round(sum(lm_losses_total) / len(lm_losses_total), 5),
                 "duration_loss": round(sum(duration_losses_total) / len(duration_losses_total), 5),
                 "pitch_loss"   : round(sum(pitch_losses_total) / len(pitch_losses_total), 5),
                 "energy_loss"  : round(sum(energy_losses_total) / len(energy_losses_total), 5),
