@@ -529,6 +529,7 @@ class ToucanTTS(torch.nn.Module):
                                             utterance_embedding=utterance_embedding_decoder,
                                             sentence_embedding=sentence_embedding)
         #decoded_spectrogram = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.output_spectrogram_channels)
+        # NOTE we could also predict mean, beta and pi from this decoded spectrogram and use also use it for the postnet instead of sampling a one from the Laplace distribution
 
         # predict laplacian mixture parameters
         mean = self.mean_layer(decoded_speech.unsqueeze(-1).transpose(1, 2))
@@ -548,7 +549,7 @@ class ToucanTTS(torch.nn.Module):
         pi = torch.softmax(pi, dim=1)
 
         # sample spectrogram from predicted distribution
-        decoded_spectrogram = sample_from_predicted_distribution2(mean, beta, pi)
+        decoded_spectrogram = sample_from_predicted_distribution(mean, beta, pi)
 
         refined_spectrogram = decoded_spectrogram + self.conv_postnet(decoded_spectrogram.transpose(1, 2)).transpose(1, 2)
 
@@ -677,29 +678,6 @@ def _integrate_with_sent_embed(hs, sent_embeddings, projection):
 import torch
 
 def sample_from_predicted_distribution(mean, beta, pi):
-    # sample mel spectrogram from predicted distribution
-    batch_size, K, T, F = mean.size()
-
-    # get components with highest probability
-    _, max_component_indices = torch.max(pi, dim=1)
-
-    # expand dimensions for gather
-    max_component_indices_exp = max_component_indices.unsqueeze(-1)
-
-    # gather mean and beta values from components with highest probability
-    mean_selected = torch.gather(mean, 1, max_component_indices_exp)
-    beta_selected = torch.gather(beta, 1, max_component_indices_exp)
-
-    # reshape mean and beta values
-    mean_selected = mean_selected.view(batch_size, T, F)
-    beta_selected = beta_selected.view(batch_size, T, F)
-
-    # sample from Laplace distribution for each entry in each spectrogram of the batch
-    sampled_values = torch.distributions.Laplace(mean_selected, beta_selected).sample()
-
-    return sampled_values
-
-def sample_from_predicted_distribution2(mean, beta, pi):
     max_prob_indices = torch.argmax(pi, dim=1)
     max_prob_indices = max_prob_indices.unsqueeze(1)
     selected_means = torch.gather(mean, 1, max_prob_indices)

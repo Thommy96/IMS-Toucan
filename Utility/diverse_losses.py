@@ -134,38 +134,23 @@ class LaplacianMixtureLoss(torch.nn.Module):
     def __init__(self):
         super(LaplacianMixtureLoss, self).__init__()
     
-    def old(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
-        batch_size, k, T, F = y_pred_mean.size()
-        loss = torch.zeros(batch_size, T, F).to(y_true.device)
-
-        for i in range(k):
-            mean_i = y_pred_mean[:, i]
-            beta_i = y_pred_beta[:, i]
-            pi_i = y_pred_pi[:, i]
-
-            component_loss = pi_i * (torch.exp(-torch.abs(y_true - mean_i) / beta_i) / (2 * beta_i))
-            loss += component_loss
-        loss = -torch.log(loss)
-        return loss
-    
     def forward(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
         batch_size, K, T, F = y_pred_mean.size()
 
-        # Reshape y_true to match the shape of y_pred_mean
+        # reshape to shape of y_pred_mean
         y_true = y_true.unsqueeze(1).expand(-1, K, -1, -1)
 
-        # Calculate the probabilities for each mixture component
-        mixture_probs = torch.exp(-torch.abs(y_true - y_pred_mean) / y_pred_beta) / (2 * y_pred_beta)
+        # calculate Laplace for each component
+        component_mixture = torch.exp(-torch.abs(y_true - y_pred_mean) / y_pred_beta) / (2 * y_pred_beta)
 
-        # Sum the probabilities along the mixture component axis (K)
-        sum_probs = torch.sum(mixture_probs * y_pred_pi, dim=1)
+        # multiply with pi and sum
+        sum_components = torch.sum(component_mixture * y_pred_pi, dim=1)
 
-        # Calculate the logarithm of the summed probabilities
-        log_sum_probs = -torch.log(sum_probs)
+        # take log
+        log_sum = -torch.log(sum_components)
 
         # Average the loss over all observations in the TF space
-        #loss = -torch.mean(log_sum_probs)
+        # NOTE not sure if mean should be taken here or if it is handled in ToucanTTSLoss
+        #loss = torch.mean(log_sum)
 
-        #print(loss)
-
-        return log_sum_probs
+        return log_sum
