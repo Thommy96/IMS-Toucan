@@ -269,7 +269,7 @@ class ToucanTTS(torch.nn.Module):
                                  sent_embed_each=sent_embed_each,
                                  use_output_norm=False)
 
-        self.feat_out = Linear(attention_dimension, output_spectrogram_channels)
+        #self.feat_out = Linear(attention_dimension, output_spectrogram_channels)
 
         # for LM Loss, predict mean, beta (mean absolute deviation) and pi (mixture probability of each component k)
         self.laplacian_k = laplacian_k
@@ -528,7 +528,7 @@ class ToucanTTS(torch.nn.Module):
                                             decoder_masks,
                                             utterance_embedding=utterance_embedding_decoder,
                                             sentence_embedding=sentence_embedding)
-        decoded_spectrogram = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.output_spectrogram_channels)
+        #decoded_spectrogram = self.feat_out(decoded_speech).view(decoded_speech.size(0), -1, self.output_spectrogram_channels)
 
         # predict laplacian mixture parameters
         mean = self.mean_layer(decoded_speech.unsqueeze(-1).transpose(1, 2))
@@ -548,7 +548,7 @@ class ToucanTTS(torch.nn.Module):
         pi = torch.softmax(pi, dim=1)
 
         # sample spectrogram from predicted distribution
-        #decoded_spectrogram = sample_from_predicted_distribution(mean, beta, pi)
+        decoded_spectrogram = sample_from_predicted_distribution2(mean, beta, pi)
 
         refined_spectrogram = decoded_spectrogram + self.conv_postnet(decoded_spectrogram.transpose(1, 2)).transpose(1, 2)
 
@@ -699,6 +699,18 @@ def sample_from_predicted_distribution(mean, beta, pi):
 
     return sampled_values
 
+def sample_from_predicted_distribution2(mean, beta, pi):
+    max_prob_indices = torch.argmax(pi, dim=1)
+    max_prob_indices = max_prob_indices.unsqueeze(1)
+    selected_means = torch.gather(mean, 1, max_prob_indices)
+    selected_betas = torch.gather(beta, 1, max_prob_indices)
+
+    selected_means = selected_means.squeeze(1)
+    selected_betas = selected_betas.squeeze(1)
+
+    samples = torch.distributions.Laplace(selected_means, selected_betas).rsample()
+
+    return samples
 
 if __name__ == '__main__':
     print(sum(p.numel() for p in ToucanTTS().parameters() if p.requires_grad))

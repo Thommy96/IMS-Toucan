@@ -60,6 +60,7 @@ class ToucanTTSInterface(torch.nn.Module):
         self.use_lang_id = True
         self.use_sent_emb = False
         self.use_word_emb = False
+        static_speaker_embed = False
         try:
             if "sent_emb" in tts_model_path:
                 raise RuntimeError

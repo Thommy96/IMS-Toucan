@@ -134,7 +134,7 @@ class LaplacianMixtureLoss(torch.nn.Module):
     def __init__(self):
         super(LaplacianMixtureLoss, self).__init__()
     
-    def forward(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
+    def old(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
         batch_size, k, T, F = y_pred_mean.size()
         loss = torch.zeros(batch_size, T, F).to(y_true.device)
 
@@ -147,3 +147,25 @@ class LaplacianMixtureLoss(torch.nn.Module):
             loss += component_loss
         loss = -torch.log(loss)
         return loss
+    
+    def forward(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
+        batch_size, K, T, F = y_pred_mean.size()
+
+        # Reshape y_true to match the shape of y_pred_mean
+        y_true = y_true.unsqueeze(1).expand(-1, K, -1, -1)
+
+        # Calculate the probabilities for each mixture component
+        mixture_probs = torch.exp(-torch.abs(y_true - y_pred_mean) / y_pred_beta) / (2 * y_pred_beta)
+
+        # Sum the probabilities along the mixture component axis (K)
+        sum_probs = torch.sum(mixture_probs * y_pred_pi, dim=1)
+
+        # Calculate the logarithm of the summed probabilities
+        log_sum_probs = -torch.log(sum_probs)
+
+        # Average the loss over all observations in the TF space
+        #loss = -torch.mean(log_sum_probs)
+
+        #print(loss)
+
+        return log_sum_probs
