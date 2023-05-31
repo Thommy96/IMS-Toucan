@@ -272,7 +272,7 @@ class ToucanTTS(torch.nn.Module):
         #self.feat_out = Linear(attention_dimension, output_spectrogram_channels)
 
         # for LM Loss, predict mean, beta (mean absolute deviation) and pi (mixture probability of each component k)
-        self.laplacian_k = laplacian_k
+        self.laplacian_k = laplacian_k # 5
         self.mean_layer = torch.nn.Conv2d(in_channels=attention_dimension, out_channels=output_spectrogram_channels * self.laplacian_k, kernel_size=(1, 1))
         self.beta_layer = torch.nn.Conv2d(in_channels=attention_dimension, out_channels=output_spectrogram_channels * self.laplacian_k, kernel_size=(1, 1))
         self.pi_layer = torch.nn.Conv2d(in_channels=attention_dimension, out_channels=output_spectrogram_channels * self.laplacian_k, kernel_size=(1, 1))

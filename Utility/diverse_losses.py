@@ -135,6 +135,7 @@ class LaplacianMixtureLoss(torch.nn.Module):
         super(LaplacianMixtureLoss, self).__init__()
     
     def forward(self, y_true, y_pred_mean, y_pred_beta, y_pred_pi):
+        # K - number of components, T - timesteps, F - frequency bins
         batch_size, K, T, F = y_pred_mean.size()
 
         # reshape to shape of y_pred_mean
