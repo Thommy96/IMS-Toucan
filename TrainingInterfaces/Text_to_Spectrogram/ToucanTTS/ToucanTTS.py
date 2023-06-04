@@ -164,7 +164,7 @@ class ToucanTTS(torch.nn.Module):
             '''
             if self.static_speaker_embed:
                 # emovdb - 4, cremad - 91, esds - 10, ravdess - 24
-                self.speaker_embedding = torch.nn.Embedding(130, 16)
+                self.speaker_embedding = torch.nn.Embedding(129, 16)
                 utt_embed_dim = 16
             if self.concat_sent_style:
                 if not self.static_speaker_embed:
@@ -219,19 +219,22 @@ class ToucanTTS(torch.nn.Module):
                                                     n_chans=duration_predictor_chans,
                                                     kernel_size=duration_predictor_kernel_size,
                                                     dropout_rate=duration_predictor_dropout_rate,
-                                                    utt_embed_dim=utt_embed_dim)
+                                                    utt_embed_dim=utt_embed_dim,
+                                                    sent_embed_dim=sent_embed_dim)
 
         self.pitch_predictor = VariancePredictor(idim=attention_dimension, n_layers=pitch_predictor_layers,
                                                  n_chans=pitch_predictor_chans,
                                                  kernel_size=pitch_predictor_kernel_size,
                                                  dropout_rate=pitch_predictor_dropout,
-                                                 utt_embed_dim=utt_embed_dim)
+                                                 utt_embed_dim=utt_embed_dim,
+                                                 sent_embed_dim=sent_embed_dim)
 
         self.energy_predictor = VariancePredictor(idim=attention_dimension, n_layers=energy_predictor_layers,
                                                   n_chans=energy_predictor_chans,
                                                   kernel_size=energy_predictor_kernel_size,
                                                   dropout_rate=energy_predictor_dropout,
-                                                  utt_embed_dim=utt_embed_dim)
+                                                  utt_embed_dim=utt_embed_dim,
+                                                  sent_embed_dim=sent_embed_dim)
 
         self.pitch_embed = Sequential(torch.nn.Conv1d(in_channels=1,
                                                       out_channels=attention_dimension,
@@ -470,9 +473,9 @@ class ToucanTTS(torch.nn.Module):
 
         if is_inference:
             # predicting pitch, energy and durations
-            pitch_predictions = self.pitch_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding)
-            energy_predictions = self.energy_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding)
-            predicted_durations = self.duration_predictor.inference(encoded_texts, padding_mask=None, utt_embed=utterance_embedding)
+            pitch_predictions = self.pitch_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, sent_embed=sentence_embedding)
+            energy_predictions = self.energy_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, sent_embed=sentence_embedding)
+            predicted_durations = self.duration_predictor.inference(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, sent_embed=sentence_embedding)
 
             # modifying the predictions with linguistic knowledge
             for phoneme_index, phoneme_vector in enumerate(text_tensors.squeeze(0)):
@@ -490,9 +493,9 @@ class ToucanTTS(torch.nn.Module):
 
         else:
             # training with teacher forcing
-            pitch_predictions = self.pitch_predictor(encoded_texts.detach(), padding_mask=padding_masks.unsqueeze(-1), utt_embed=utterance_embedding)
-            energy_predictions = self.energy_predictor(encoded_texts, padding_mask=padding_masks.unsqueeze(-1), utt_embed=utterance_embedding)
-            predicted_durations = self.duration_predictor(encoded_texts, padding_mask=padding_masks, utt_embed=utterance_embedding)
+            pitch_predictions = self.pitch_predictor(encoded_texts.detach(), padding_mask=padding_masks.unsqueeze(-1), utt_embed=utterance_embedding, sent_embed=sentence_embedding)
+            energy_predictions = self.energy_predictor(encoded_texts, padding_mask=padding_masks.unsqueeze(-1), utt_embed=utterance_embedding, sent_embed=sentence_embedding)
+            predicted_durations = self.duration_predictor(encoded_texts, padding_mask=padding_masks, utt_embed=utterance_embedding, sent_embed=sentence_embedding)
 
             embedded_pitch_curve = self.pitch_embed(gold_pitch.transpose(1, 2)).transpose(1, 2)
             embedded_energy_curve = self.energy_embed(gold_energy.transpose(1, 2)).transpose(1, 2)
