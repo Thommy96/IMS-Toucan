@@ -201,19 +201,22 @@ class ToucanTTS(torch.nn.Module):
                                                     n_chans=duration_predictor_chans,
                                                     kernel_size=duration_predictor_kernel_size,
                                                     dropout_rate=duration_predictor_dropout_rate,
-                                                    utt_embed_dim=utt_embed_dim)
+                                                    utt_embed_dim=utt_embed_dim,
+                                                    sent_embed_dim=sent_embed_dim)
 
         self.pitch_predictor = VariancePredictor(idim=attention_dimension, n_layers=pitch_predictor_layers,
                                                  n_chans=pitch_predictor_chans,
                                                  kernel_size=pitch_predictor_kernel_size,
                                                  dropout_rate=pitch_predictor_dropout,
-                                                 utt_embed_dim=utt_embed_dim)
+                                                 utt_embed_dim=utt_embed_dim,
+                                                 sent_embed_dim=sent_embed_dim)
 
         self.energy_predictor = VariancePredictor(idim=attention_dimension, n_layers=energy_predictor_layers,
                                                   n_chans=energy_predictor_chans,
                                                   kernel_size=energy_predictor_kernel_size,
                                                   dropout_rate=energy_predictor_dropout,
-                                                  utt_embed_dim=utt_embed_dim)
+                                                  utt_embed_dim=utt_embed_dim,
+                                                  sent_embed_dim=sent_embed_dim)
 
         self.pitch_embed = Sequential(torch.nn.Conv1d(in_channels=1,
                                                       out_channels=attention_dimension,
@@ -352,9 +355,9 @@ class ToucanTTS(torch.nn.Module):
                                         lang_ids=lang_ids)
 
         # predicting pitch, energy and durations
-        pitch_predictions = self.pitch_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding) if gold_pitch is None else gold_pitch
-        energy_predictions = self.energy_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding) if gold_energy is None else gold_energy
-        predicted_durations = self.duration_predictor.inference(encoded_texts, padding_mask=None, utt_embed=utterance_embedding) if gold_durations is None else gold_durations
+        pitch_predictions = self.pitch_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, sent_embed=sentence_embedding) if gold_pitch is None else gold_pitch
+        energy_predictions = self.energy_predictor(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, sent_embed=sentence_embedding) if gold_energy is None else gold_energy
+        predicted_durations = self.duration_predictor.inference(encoded_texts, padding_mask=None, utt_embed=utterance_embedding, sent_embed=sentence_embedding) if gold_durations is None else gold_durations
 
         # modifying the predictions with linguistic knowledge and control parameters
         for phoneme_index, phoneme_vector in enumerate(text_tensors.squeeze(0)):
