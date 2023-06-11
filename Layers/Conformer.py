@@ -68,12 +68,14 @@ class Conformer(torch.nn.Module):
                  utt_embed=None, 
                  lang_embs=None,
                  word_embed_dim=None,
+                 conformer_encoder=False,
                  ):
         super(Conformer, self).__init__()
 
         activation = Swish()
         self.conv_subsampling_factor = 1
         self.use_output_norm = use_output_norm
+        self.conformer_encoder = conformer_encoder
 
         if isinstance(input_layer, torch.nn.Module):
             self.embed = input_layer
@@ -90,7 +92,12 @@ class Conformer(torch.nn.Module):
         self.word_embed_dim = word_embed_dim
 
         if self.utt_embed is not None:
-            self.hs_emb_projection = torch.nn.Linear(attention_dim + self.utt_embed, attention_dim)
+            self.hs_emb_projections = repeat(num_blocks, lambda lnum: torch.nn.Linear(attention_dim + self.utt_embed, attention_dim))
+            self.squeeze_excitations_utt = repeat(num_blocks, lambda lnum: SqueezeExcitation(attention_dim * 2, attention_dim))
+            if self.conformer_encoder:
+                self.encoder_projection = torch.nn.Linear(attention_dim + self.utt_embed, attention_dim)
+                self.squeeze_excitation_utt_encoder = SqueezeExcitation(attention_dim * 2, attention_dim)
+
         if lang_embs is not None:
             self.language_embedding = torch.nn.Embedding(num_embeddings=lang_embs, embedding_dim=attention_dim)
         if self.word_embed_dim is not None:
@@ -114,8 +121,6 @@ class Conformer(torch.nn.Module):
                                                                      positionwise_layer(*positionwise_layer_args) if macaron_style else None,
                                                                      convolution_layer(*convolution_layer_args) if use_cnn_module else None, dropout_rate,
                                                                      normalize_before, concat_after))
-        
-        self.squeeze_excitation_utt = SqueezeExcitation(attention_dim * 2, attention_dim)
 
     def forward(self,
                 xs,
@@ -174,24 +179,42 @@ class Conformer(torch.nn.Module):
 
         xs = self.pos_enc(xs)
 
-        xs, masks = self.encoders(xs, masks)
+        for encoder_index, encoder in enumerate(self.encoders):
+            if self.utt_embed:
+                if isinstance(xs, tuple):
+                    x, pos_emb = xs[0], xs[1]
+                    x = self._integrate_with_utt_embed(hs=x, 
+                                                       utt_embeddings=utterance_embedding, 
+                                                       projection=self.hs_emb_projections[encoder_index],
+                                                       squeeze_excitation=self.squeeze_excitations_utt[encoder_index])
+                    xs = (x, pos_emb)
+                else:
+                    xs = self._integrate_with_utt_embed(hs=xs, 
+                                                        utt_embeddings=utterance_embedding,
+                                                        projection=self.hs_emb_projections[encoder_index],
+                                                        squeeze_excitation=self.squeeze_excitations_utt[encoder_index])
+            xs, masks = encoder(xs, masks)
+
         if isinstance(xs, tuple):
             xs = xs[0]
 
         if self.use_output_norm:
             xs = self.output_norm(xs)
 
-        if self.utt_embed:
-            xs = self._integrate_with_utt_embed(hs=xs, utt_embeddings=utterance_embedding)
+        if self.utt_embed and self.conformer_encoder: # only do this in the encoder
+            xs = self._integrate_with_utt_embed(hs=xs, 
+                                                utt_embeddings=utterance_embedding, 
+                                                projection=self.encoder_projection,
+                                                squeeze_excitation=self.squeeze_excitation_utt_encoder)
 
         return xs, masks
 
-    def _integrate_with_utt_embed(self, hs, utt_embeddings):
+    def _integrate_with_utt_embed(self, hs, utt_embeddings, projection, squeeze_excitation):
         # concat hidden states with spk embeds and then apply projection
         embeddings_expanded = torch.nn.functional.normalize(utt_embeddings).unsqueeze(1).expand(-1, hs.size(1), -1)
         hs = torch.cat([hs, embeddings_expanded], dim=-1)
-        hs = self.squeeze_excitation_utt(hs.transpose(0, 2)).transpose(0, 2)
-        hs = self.hs_emb_projection(hs)
+        hs = squeeze_excitation(hs.transpose(0, 2)).transpose(0, 2)
+        hs = projection(hs)
         return hs
     
     def _cat_with_word_embed(self, phoneme_embeddings, word_embedding):
