@@ -225,9 +225,9 @@ class Conformer(torch.nn.Module):
         # pad phoneme sequences to get whole batch
         xs_enhanced_padded = pad_sequence(xs_enhanced, batch_first=True)
         # apply projection
-        print(xs_enhanced_padded.shape)
         xs = word_phoneme_squeeze_excitation(xs_enhanced_padded.transpose(0, 2)).transpose(0, 2)
         xs = word_phoneme_projection(xs_enhanced_padded)
+        return xs
     
     def _cat_with_word_embed(self, phoneme_embeddings, word_embedding):
         # concat phoneme embeddings with corresponding word embedding and then apply projection
